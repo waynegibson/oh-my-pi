@@ -1,7 +1,10 @@
 {
   "lastChangelogVersion": "0.80.6",
-  "theme": "dark",
+  "theme": "tokyo-night",
   "defaultProvider": "olmx",
   "defaultModel": "mlx-community/Qwen3.6-35B-A3B-6bit",
-  "defaultThinkingLevel": "medium"
+  "defaultThinkingLevel": "medium",
+  "prompts": [
+    "../.claude/commands"
+  ]
 }

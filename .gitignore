@@ -12,23 +12,23 @@ node_modules/
 .npm/
 
 # Pi secrets
-base/agent/auth.json
-base/agent/*-memory
+agent/auth.json
+agent/*-memory
 *.key
 *.token
 *.db
 
 # Pi runtime data
-base/agent/projects-memory/
-base/agent/sessions/
-base/agent/extensions/*/node_modules/
-base/agent/npm/
-base/agent/git/
+agent/projects-memory/
+agent/sessions/
+agent/extensions/*/node_modules/
+agent/npm/
+agent/git/
 
 # Pi backup files
-base/agent/models.*.bak
-base/agent/settings.*.bak
-base/agent/sessions.*.bak
+agent/models.*.bak
+agent/settings.*.bak
+agent/sessions.*.bak
 
 # Environment files
 .env
