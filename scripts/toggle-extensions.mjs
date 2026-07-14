@@ -33,9 +33,6 @@ const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const EXT_DIR = join(REPO_ROOT, "extensions");
 const SETTINGS_PATH = join(REPO_ROOT, "base", "agent", "settings.json");
 
-// Shared helper modules with no default export — not loadable as extensions themselves.
-const EXCLUDE = new Set(["theme-map"]);
-
 // Groups of extension names that must never be simultaneously active (e.g. they hook the
 // same events and would double-fire). At most one per group may be selected — resolved
 // interactively before anything is written, not just warned about after the fact. Add new
@@ -51,9 +48,7 @@ function discoverCandidates() {
   for (const entry of entries) {
     if (entry.isFile() && entry.name.endsWith(".ts")) {
       const name = entry.name.slice(0, -3);
-      if (!EXCLUDE.has(name)) {
-        candidates.push({ name, path: join(EXT_DIR, entry.name) });
-      }
+      candidates.push({ name, path: join(EXT_DIR, entry.name) });
     } else if (entry.isDirectory()) {
       const indexPath = join(EXT_DIR, entry.name, "index.ts");
       if (statSyncSafe(indexPath)) {

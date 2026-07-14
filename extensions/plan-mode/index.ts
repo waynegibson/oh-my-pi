@@ -21,7 +21,7 @@ import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { AssistantMessage, TextContent } from "@earendil-works/pi-ai";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Key } from "@earendil-works/pi-tui";
-import { applyExtensionDefaults } from "../theme-map.ts";
+import { applyExtensionDefaults, registerThemeDiscovery } from "../../lib/theme-map.ts";
 import {
 	askPlanModeQuestions,
 	normalizePlanModeQuestionParams,
@@ -53,6 +53,8 @@ function getTextContent(message: AssistantMessage): string {
 }
 
 export default function planModeExtension(pi: ExtensionAPI): void {
+	registerThemeDiscovery(pi, import.meta.url);
+
 	let planModeEnabled = false;
 	let executionMode = false;
 	let todoItems: TodoItem[] = [];

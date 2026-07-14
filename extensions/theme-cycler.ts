@@ -1,9 +1,10 @@
 /**
  * Theme Cycler — Keyboard shortcuts to cycle through available themes
  *
- * base/agent/themes is symlinked to the repo-root themes/ directory, so Pi's
- * own global discovery already makes getAllThemes() (and therefore cycling
- * and /theme) include all 11 custom themes there, not just built-in dark/light.
+ * Registers the whole repo-root themes/ directory via registerThemeDiscovery (lib/theme-map.ts) —
+ * cycling/picking needs the full set, unlike other extensions which register only their
+ * own assigned theme. getAllThemes() (and therefore cycling and /theme) includes all 11
+ * custom themes whenever this extension is active.
  *
  * Shortcuts:
  *   F2              — Cycle theme forward
@@ -27,9 +28,11 @@ import type {
   ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth } from "@earendil-works/pi-tui";
-import { applyExtensionDefaults, themeSourceTag } from "./theme-map.ts";
+import { applyExtensionDefaults, registerThemeDiscovery, themeSourceTag } from "../lib/theme-map.ts";
 
 export default function (pi: ExtensionAPI) {
+  registerThemeDiscovery(pi, import.meta.url);
+
   let swatchTimer: ReturnType<typeof setTimeout> | null = null;
 
   function updateStatus(ctx: ExtensionContext) {
@@ -64,7 +67,7 @@ export default function (pi: ExtensionAPI) {
             theme.fg("muted", block);
           const label =
             theme.fg("accent", " 🎨 ") +
-            theme.fg("muted", ctx.ui.theme.name) +
+            theme.fg("muted", ctx.ui.theme.name ?? "") +
             "  " +
             swatch;
           const border = theme.fg(

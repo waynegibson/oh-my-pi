@@ -19,7 +19,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { parse as yamlParse } from "yaml";
-import { applyExtensionDefaults } from "./theme-map.ts";
+import { applyExtensionDefaults, registerThemeDiscovery } from "../lib/theme-map.ts";
 
 interface Rule {
   pattern: string;
@@ -60,6 +60,8 @@ function continueFeedback(
 }
 
 export default function (pi: ExtensionAPI) {
+  registerThemeDiscovery(pi, import.meta.url);
+
   let rules: Rules = {
     bashToolPatterns: [],
     zeroAccessPaths: [],

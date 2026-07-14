@@ -1,11 +1,26 @@
 /**
  * theme-map.ts — Per-extension default theme assignments
  *
- * Themes live in the repo-root themes/ directory (sibling of extensions/).
- * base/agent/themes is a symlink to it, so Pi's own global discovery
- * (~/.pi/agent/themes/) picks them up at startup — no extension needs to
- * register the path itself. applyExtensionTheme / applyExtensionDefaults in
- * session_start just switch to each extension's mapped theme.
+ * Not an extension itself — a shared helper imported by extensions/*, which is why it
+ * lives in lib/ instead of extensions/ (Pi's extension auto-discovery, and our own
+ * scripts/toggle-extensions.mjs, only look inside extensions/).
+ *
+ * Themes live in the repo-root themes/ directory (sibling of extensions/ and lib/).
+ * There is deliberately no base/agent/themes symlink anymore: Pi always scans
+ * ~/.pi/agent/themes/ as a default directory regardless of what's explicitly
+ * registered, so a blanket symlink there means every custom theme is discovered on
+ * every launch, cluttering the startup [Themes] banner even when only one extension
+ * (with one assigned theme) is active. Instead, registerThemeDiscovery() registers only
+ * what's actually needed for the calling extension:
+ *
+ *   - theme-cycler is active  -> register the whole themes/ directory (cycling/picking
+ *     needs the full set to mean anything)
+ *   - any other extension     -> register only its own THEME_MAP-assigned theme file
+ *
+ * Call registerThemeDiscovery(pi, import.meta.url) once in each extension's factory body
+ * (not inside session_start — resources_discover must be registered before it fires on
+ * startup), then applyExtensionTheme / applyExtensionDefaults in session_start to
+ * actually switch to the mapped theme.
  *
  * Available themes (themes/):
  *   catppuccin-mocha · cyberpunk · dracula · everforest · gruvbox
@@ -13,18 +28,20 @@
  *   synthwave        · tokyo-night
  */
 
-import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { realpathSync } from "node:fs";
 import { basename, dirname, join, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
-// Real path of the repo-root themes/ directory, resolved once at load time.
-// Used to tell "our" themes apart from Pi's own bundled dark/light in the
-// /theme picker, regardless of how Pi reports the path (symlinked via
-// base/agent/themes, or the repo-root path directly).
+// Absolute path to the repo-root themes/ directory, resolved relative to this file
+// (not ctx.cwd), so it works regardless of where pi is launched from.
+const THEMES_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "themes");
+
+// Real path of THEMES_DIR, resolved once at load time. Used to tell "our" themes apart
+// from Pi's own bundled dark/light in the /theme picker.
 const CUSTOM_THEMES_DIR = (() => {
   try {
-    return realpathSync(join(dirname(fileURLToPath(import.meta.url)), "..", "themes"));
+    return realpathSync(THEMES_DIR);
   } catch {
     return null;
   }
@@ -71,7 +88,7 @@ export const THEME_MAP: Record<string, string> = {
   "tool-counter-widget": "synthwave", // same family
 };
 
-// ── Helpers ───────────────────────────────────────────────────────────────
+// ── Helpers ──────────────────────────────────────────────────────────────────
 
 /**
  * Derive an extension's name from a file or directory path. For folder-style
@@ -90,6 +107,34 @@ function extensionName(fileUrl: string): string {
     ? fileURLToPath(fileUrl)
     : fileUrl;
   return baseExtensionName(filePath);
+}
+
+// ── Discovery ──────────────────────────────────────────────────────────────
+
+/**
+ * Register only the theme(s) the calling extension actually needs, instead of the whole
+ * themes/ directory. theme-cycler is the one exception: its whole purpose is cycling
+ * between all of them, so it registers the full set. Discovery is additive across
+ * extensions — if several are stacked, each contributes its own file (or, if
+ * theme-cycler is among them, the full directory wins for that launch).
+ *
+ * Call this once in each extension's factory body (not inside session_start —
+ * resources_discover must be registered before it fires on startup).
+ *
+ *   export default function (pi: ExtensionAPI) {
+ *     registerThemeDiscovery(pi, import.meta.url);
+ *     pi.on("session_start", async (_event, ctx) => { applyExtensionDefaults(import.meta.url, ctx); ... });
+ *   }
+ */
+export function registerThemeDiscovery(pi: ExtensionAPI, fileUrl: string): void {
+  const name = extensionName(fileUrl);
+  pi.on("resources_discover", async () => {
+    if (name === "theme-cycler") {
+      return { themePaths: [THEMES_DIR] };
+    }
+    const themeName = THEME_MAP[name] || "synthwave";
+    return { themePaths: [join(THEMES_DIR, `${themeName}.json`)] };
+  });
 }
 
 // ── Theme ──────────────────────────────────────────────────────────────────
@@ -139,7 +184,8 @@ export function applyExtensionTheme(fileUrl: string, ctx: ExtensionContext): voi
  * this and gets the same answer ("subagent-widget"), so all setTitle calls
  * are idempotent — no shared state or deduplication needed.
  *
- * Returns null if no -e flag is present (e.g. plain `pi` with no extensions).
+ * Returns null if no -e flag is present (e.g. plain `pi` with no extensions, or
+ * extensions loaded via settings.json's "extensions" array instead of -e).
  */
 function primaryExtensionName(): string | null {
   const argv = process.argv;
@@ -165,16 +211,19 @@ function applyExtensionTitle(ctx: ExtensionContext): void {
   setTimeout(() => ctx.ui.setTitle(`π - ${name}`), 150);
 }
 
-// ── Combined default ───────────────────────────────────────────────────────
+// ── Combined default ─────────────────────────────────────────────────────────
 
 /**
  * Apply both the mapped theme AND the terminal title for an extension.
  * Drop-in replacement for applyExtensionTheme — call this in every session_start.
+ * Still requires registerThemeDiscovery(pi, import.meta.url) in the factory body — this
+ * alone does not register the extension's theme path with Pi.
  *
  * Usage:
- *   import { applyExtensionDefaults } from "./theme-map.ts";
+ *   import { applyExtensionDefaults, registerThemeDiscovery } from "../lib/theme-map.ts";
  *
  *   export default function (pi: ExtensionAPI) {
+ *     registerThemeDiscovery(pi, import.meta.url);
  *     pi.on("session_start", async (_event, ctx) => {
  *       applyExtensionDefaults(import.meta.url, ctx);
  *       // ... rest of handler

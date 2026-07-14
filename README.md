@@ -27,15 +27,17 @@ Personal configuration for [Pi](https://pi.dev) — a minimal, extensible termin
 │                                    # yaml is the one real runtime dependency, used by damage-control*.ts
 ├── .pi/                            # Pi's actual global config root — repo root's base/ is symlinked to ~/.pi
 │   └── agent/                       # This resolves as ~/.pi/agent/
-│       ├── settings.json            # Theme, default provider/model, thinking level
+│       ├── settings.json            # Theme (built-in "dark" — see below), default provider/model,
+│       │                            # thinking level, extensions array (see below)
 │       ├── models.json              # Custom provider definitions (local MLX server `olmx`)
 │       ├── auth.json                # Provider credentials — see below (gitignored)
-│       ├── themes/                  # Symlink -> ../../themes, so Pi's global discovery finds them
 │       ├── damage-control-rules.yaml # Rules consumed by extensions/damage-control*.ts
 │       └── sessions/                 # Auto-saved conversation history (gitignored)
+├── lib/                            # Shared helper modules — not extensions themselves, so kept
+│   └── theme-map.ts                 # out of extensions/ where Pi's auto-discovery would try to
+│                                     # load them as one. Per-extension theme/title assignment.
 ├── extensions/                     # Project-local extensions — separate from agent/, so they stay
 │   │                                opt-in instead of auto-loading globally like agent/extensions/ would
-│   ├── theme-map.ts                # Shared helper: per-extension theme + title assignment
 │   ├── damage-control.ts           # Hard block — stops and asks the user on every rule violation
 │   ├── damage-control-continue.ts  # Same rules, but lets the agent continue past non-destructive blocks
 │   ├── theme-cycler.ts             # F2/Ctrl+Q theme cycling, /theme picker
@@ -46,8 +48,10 @@ Personal configuration for [Pi](https://pi.dev) — a minimal, extensible termin
 │       ├── tool-policy.ts           # Bash safety tokenizer (ported from narumiruna/pi-extensions)
 │       ├── question-tool.ts         # Owned plan_mode_question tool (ported from narumiruna/pi-extensions)
 │       └── README.md
-└── themes/                         # Theme JSON files (11 custom themes) — canonical source, symlinked
-                                     # into base/agent/themes/ for Pi's global discovery
+├── scripts/
+│   └── toggle-extensions.mjs       # Interactive checkbox picker — which extensions load globally
+└── themes/                         # Theme JSON files (11 custom themes) — canonical source. No
+                                     # symlink into base/agent/themes/ anymore (see "Themes" below)
 ```
 
 ## Authentication (`auth.json`)
@@ -77,14 +81,13 @@ Pi resolves provider credentials in this order: CLI `--api-key` flag → `auth.j
 
 Two tiers, kept deliberately separate:
 
-- **Global** — `agent/{prompts,skills,extensions,themes}/`. This repo's root is symlinked to `~/.pi`, so anything here resolves as `~/.pi/agent/...` and auto-loads in every project. Only `themes/` is populated so far, as a symlink to the repo-root `themes/` directory (see below) — `prompts/`, `skills/`, `extensions/` are still empty.
-- **Project-local, opt-in** — `extensions/*.ts` at the repo root, kept as a sibling of `agent/` rather than nested inside it, so extensions never become global or get auto-loaded by Pi; they're loaded explicitly, by name, via the `piext()` shell function (see below). `themes/*.json` also lives at the repo root as the canonical source, but is exposed globally via the `base/agent/themes` symlink rather than being project-local-only.
+- **Global** — `agent/{prompts,skills,extensions,themes}/`. This repo's root is symlinked to `~/.pi`, so anything here resolves as `~/.pi/agent/...` and auto-loads in every project. Currently empty — the extensions this repo builds stay in the project-local tier below, activated either by `npm run toggle-extensions` (writing to `settings.json`'s `extensions` array, itself global-scope) or on demand via `piext`.
+- **Project-local, opt-in** — `extensions/*.ts` at the repo root, kept as a sibling of `agent/` rather than nested inside it, so extensions never auto-load by just existing in this repo; they're loaded explicitly, by name, via the `piext()` shell function (see below), or persistently via `npm run toggle-extensions`. `lib/theme-map.ts` is a sibling of `extensions/`, not inside it — it has no default export and isn't itself loadable as an extension, so it'd break auto-discovery if it lived there.
 
 Current extensions (`extensions/`):
 
 | File                         | Purpose                                                                                                                                     |
 | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| `theme-map.ts`               | Shared helper, not an extension itself — per-extension theme/title assignment on `session_start`                                            |
 | `damage-control.ts`          | Rule-based safety gate for the current project (`.pi/damage-control-rules.yaml`) — hard blocks and tells the agent to stop and ask the user |
 | `damage-control-continue.ts` | Same rules, but the block feedback lets the agent keep working past non-destructive violations                                              |
 | `theme-cycler.ts`            | F2/Ctrl+Q to cycle themes, `/theme` to pick one, status line + swatch widget                                                                |
@@ -108,9 +111,22 @@ For extensions you want *always* loaded (no `piext`/`-e` needed at all), run `np
 Two alternatives were tried and reverted after failing that same end-to-end check, despite each looking correct from source-reading alone:
 
 - **Relative paths in the `packages` array**, on the theory that local package sources there resolve against `agentDir` rather than `cwd` — plausible from `dist/core/package-manager.js`, but empirically the extensions never loaded (no `[Extensions]` banner, no footer change).
-- **A symlink into `base/agent/extensions/`** — every extension here imports `./theme-map.ts`, and jiti (Pi's `.ts` loader) resolves relative imports via Node's classic CJS algorithm, which does not resolve a symlinked directory's realpath first, so that import failed to resolve.
+- **A symlink into `base/agent/extensions/`** — every extension here imports `../lib/theme-map.ts`, and jiti (Pi's `.ts` loader) resolves relative imports via Node's classic CJS algorithm, which does not resolve a symlinked directory's realpath first, so that import failed to resolve.
 
 Trade-off of the working version: absolute paths are machine-specific, so this one array in `base/agent/settings.json` isn't portable if the repo is cloned to a different path — re-run `npm run toggle-extensions` once after cloning elsewhere to regenerate correct paths for that machine.
+
+## Themes
+
+`themes/` (11 custom JSON files) is **not** symlinked into `base/agent/themes/` — Pi always scans that directory by default regardless of what's explicitly registered, so a blanket symlink there means every theme gets discovered (and shown in the startup `[Themes]` banner) on every single launch, whether or not anything needs more than one.
+
+Instead, each extension registers only what it needs via `lib/theme-map.ts`'s `registerThemeDiscovery()`, called once in every extension's factory body:
+
+- Any extension **other than** `theme-cycler.ts` registers just its own `THEME_MAP`-assigned theme file (e.g. `plan-mode` → only `nord.json`) — the banner shows exactly what's relevant to what's actually running.
+- `theme-cycler.ts` registers the whole `themes/` directory — cycling (`F2`/`Ctrl+Q`) or picking (`/theme`) needs the full set to mean anything. Stack it alongside anything else (`piext plan-mode theme-cycler minimal`) to get both the assigned theme *and* the ability to override it.
+
+`base/agent/settings.json`'s own `"theme"` field is set to the built-in `"dark"`, not a custom theme — that field is Pi's own early-startup default, applied *before* `resources_discover` fires, so a custom theme there would error and flash-fallback the moment no extension happens to register it first (this was tried and reverted after the error showed up in a real interactive session). Each extension's own dynamic `ctx.ui.setTheme()` call 150ms later is what actually applies a custom theme.
+
+One residual, harmless side effect: extensions with overlapping `THEME_MAP` assignments (`minimal.ts` and `theme-cycler.ts` both map to `synthwave`) produce a small theme-collision notice when stacked together — Pi resolves it correctly (keeps one, skips the duplicate copy), it's just a bit of startup noise, not a functional issue.
 
 All 11 custom themes are available everywhere `pi` runs — `base/agent/themes` is a symlink to the repo-root `themes/` directory, so Pi's own global theme discovery (`~/.pi/agent/themes/`) picks them up without any extension needing to register the path itself.
 
