@@ -1,4 +1,4 @@
-# pi-config
+# oh-my-pi
 
 Personal configuration for [Pi](https://pi.dev) — a minimal, extensible terminal coding agent (`@earendil-works/pi-coding-agent`). `~/.pi` is symlinked to the root of this repo (`base/` lives directly at the repo root) so settings, models, and credential _references_ stay version-controlled and portable across machines.
 
@@ -86,12 +86,12 @@ Two tiers, kept deliberately separate:
 
 Current extensions (`extensions/`):
 
-| File                         | Purpose                                                                                                                                     |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| `damage-control.ts`          | Rule-based safety gate for the current project (`.pi/damage-control-rules.yaml`) — hard blocks and tells the agent to stop and ask the user |
-| `damage-control-continue.ts` | Same rules, but the block feedback lets the agent keep working past non-destructive violations                                              |
-| `theme-cycler.ts`            | F2/Ctrl+Q to cycle themes, `/theme` to pick one, status line + swatch widget                                                                |
-| `minimal.ts`                 | Replaces the footer with just model name + a 10-block context usage bar                                                                     |
+| File                         | Purpose                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `damage-control.ts`          | Rule-based safety gate for the current project (`.pi/damage-control-rules.yaml`) — hard blocks and tells the agent to stop and ask the user                                                                                                                                                                                                                                                                              |
+| `damage-control-continue.ts` | Same rules, but the block feedback lets the agent keep working past non-destructive violations                                                                                                                                                                                                                                                                                                                           |
+| `theme-cycler.ts`            | F2/Ctrl+Q to cycle themes, `/theme` to pick one, status line + swatch widget                                                                                                                                                                                                                                                                                                                                             |
+| `minimal.ts`                 | Replaces the footer with just model name + a 10-block context usage bar                                                                                                                                                                                                                                                                                                                                                  |
 | `plan-mode/`                 | `/plan` or `Ctrl+Alt+P` toggles read-only exploration (disables `edit`/`write`, tokenizes/allowlists `bash`), owns a `plan_mode_question` clarifying-questions tool, extracts a numbered plan, tracks `[DONE:n]` progress during execution — base ported from Pi's own `examples/extensions/plan-mode/`, bash-safety + question-tool ported from [narumiruna/pi-extensions](https://github.com/narumiruna/pi-extensions) |
 
 Run via `piext` (a shell function in `~/.dotfiles/functions_zsh`, not part of this repo) — pass extension names, mix any combination, from any project directory. `piext` resolves each name to `extensions/<name>.ts` or `extensions/<name>/index.ts` and runs plain `pi -e ...` with absolute paths; nothing loads unless you name it:
@@ -106,7 +106,7 @@ piext plan-mode minimal theme-cycler           # plan mode + minimal footer + th
 
 Short aliases (`pi:dc`, `pi:dcc`, `pi:theme`, `pi:plan`, `pi:list`) wrap the common combos above — see `~/.dotfiles/aliases.zsh`.
 
-For extensions you want *always* loaded (no `piext`/`-e` needed at all), run `npm run toggle-extensions` (or `node scripts/toggle-extensions.mjs`) — an interactive checkbox picker (`@inquirer/prompts`) that writes **absolute** paths into `base/agent/settings.json`'s `extensions` array — the documented "additional paths via settings.json" mechanism (docs/extensions.md), confirmed end-to-end with a real interactive `pi` session (the `[Extensions]` startup banner appears, and `minimal.ts`'s custom footer actually renders).
+For extensions you want _always_ loaded (no `piext`/`-e` needed at all), run `npm run toggle-extensions` (or `node scripts/toggle-extensions.mjs`) — an interactive checkbox picker (`@inquirer/prompts`) that writes **absolute** paths into `base/agent/settings.json`'s `extensions` array — the documented "additional paths via settings.json" mechanism (docs/extensions.md), confirmed end-to-end with a real interactive `pi` session (the `[Extensions]` startup banner appears, and `minimal.ts`'s custom footer actually renders).
 
 Two alternatives were tried and reverted after failing that same end-to-end check, despite each looking correct from source-reading alone:
 
@@ -122,9 +122,9 @@ Trade-off of the working version: absolute paths are machine-specific, so this o
 Instead, each extension registers only what it needs via `lib/theme-map.ts`'s `registerThemeDiscovery()`, called once in every extension's factory body:
 
 - Any extension **other than** `theme-cycler.ts` registers just its own `THEME_MAP`-assigned theme file (e.g. `plan-mode` → only `nord.json`) — the banner shows exactly what's relevant to what's actually running.
-- `theme-cycler.ts` registers the whole `themes/` directory — cycling (`F2`/`Ctrl+Q`) or picking (`/theme`) needs the full set to mean anything. Stack it alongside anything else (`piext plan-mode theme-cycler minimal`) to get both the assigned theme *and* the ability to override it.
+- `theme-cycler.ts` registers the whole `themes/` directory — cycling (`F2`/`Ctrl+Q`) or picking (`/theme`) needs the full set to mean anything. Stack it alongside anything else (`piext plan-mode theme-cycler minimal`) to get both the assigned theme _and_ the ability to override it.
 
-`base/agent/settings.json`'s own `"theme"` field is set to the built-in `"dark"`, not a custom theme — that field is Pi's own early-startup default, applied *before* `resources_discover` fires, so a custom theme there would error and flash-fallback the moment no extension happens to register it first (this was tried and reverted after the error showed up in a real interactive session). Each extension's own dynamic `ctx.ui.setTheme()` call 150ms later is what actually applies a custom theme.
+`base/agent/settings.json`'s own `"theme"` field is set to the built-in `"dark"`, not a custom theme — that field is Pi's own early-startup default, applied _before_ `resources_discover` fires, so a custom theme there would error and flash-fallback the moment no extension happens to register it first (this was tried and reverted after the error showed up in a real interactive session). Each extension's own dynamic `ctx.ui.setTheme()` call 150ms later is what actually applies a custom theme.
 
 One residual, harmless side effect: extensions with overlapping `THEME_MAP` assignments (`minimal.ts` and `theme-cycler.ts` both map to `synthwave`) produce a small theme-collision notice when stacked together — Pi resolves it correctly (keeps one, skips the duplicate copy), it's just a bit of startup noise, not a functional issue.
 
