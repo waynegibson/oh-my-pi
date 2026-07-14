@@ -6,8 +6,12 @@
   "workspaces": [
     "extensions/*"
   ],
+  "scripts": {
+    "toggle-extensions": "node scripts/toggle-extensions.mjs"
+  },
   "dependencies": {
-    "yaml": "^2.9.0"
+    "yaml": "^2.9.0",
+    "@inquirer/prompts": "^8.5.2"
   },
   "devDependencies": {
     "@earendil-works/pi-agent-core": "^0.80.6",

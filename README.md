@@ -103,6 +103,13 @@ piext plan-mode minimal theme-cycler           # plan mode + minimal footer + th
 
 Short aliases (`pi:dc`, `pi:dcc`, `pi:theme`, `pi:plan`, `pi:list`) wrap the common combos above — see `~/.dotfiles/aliases.zsh`.
 
+For extensions you want *always* loaded (no `piext`/`-e` needed at all), run `npm run toggle-extensions` (or `node scripts/toggle-extensions.mjs`) — an interactive checkbox picker (`@inquirer/prompts`) that writes **relative** paths into `base/agent/settings.json`'s `packages` array, as local package sources. Two things this deliberately avoids, confirmed by reading the installed package's own source (`dist/core/package-manager.js`, `dist/core/resource-loader.js`) rather than assumed from docs:
+
+- **Not the plain `extensions` array** (docs/extensions.md's "additional paths via settings.json") — that one resolves relative paths against `cwd`, which would break depending on where `pi` happens to be launched from, and only absolute paths are actually stable there — which is exactly what we don't want baked into a version-controlled file.
+- **Not a symlink into `base/agent/extensions/`** — every extension here imports `./theme-map.ts`, and jiti (Pi's `.ts` loader) resolves relative imports via Node's classic CJS algorithm, which does not resolve a symlinked directory's realpath first. A symlink-based version of this was tried and reverted because that import silently failed to resolve.
+
+The `packages` array's local-path entries resolve relative paths against `agentDir` (`base/agent/`) specifically — portable across machines, no absolute path ever committed, and it correctly falls back to treating a bare directory with no `package.json` (like `plan-mode/`) as a single directory-style extension.
+
 All 11 custom themes are available everywhere `pi` runs — `base/agent/themes` is a symlink to the repo-root `themes/` directory, so Pi's own global theme discovery (`~/.pi/agent/themes/`) picks them up without any extension needing to register the path itself.
 
 Run `/prime` in Claude Code inside this repo for a full onboarding guide to Pi's capabilities and this config's current state.
