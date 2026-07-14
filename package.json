@@ -1,0 +1,17 @@
+{
+  "name": "oh-my-pi",
+  "private": true,
+  "type": "module",
+  "description": "Personal configuration for a minimal, extensible terminal coding agent",
+  "workspaces": [
+    "extensions/*"
+  ],
+  "dependencies": {
+    "yaml": "^2.9.0"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "^0.80.6",
+    "@earendil-works/pi-tui": "^0.80.6",
+    "@types/node": "^22.0.0"
+  }
+}

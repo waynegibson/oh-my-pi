@@ -1,21 +1,20 @@
+
 /**
  * Minimal — Model name + context meter in a compact footer
  *
  * Replaces Pi's built-in footer with a single line: model ID + a 10-block
  * context usage bar, e.g. ` mlx-community/Qwen3.6-35B-A3B-6bit[###-------] 30% `.
- * Mapped to the "synthwave" theme via theme-map.ts (registerThemeDiscovery
- * registers the repo-root themes/ directory so that theme is actually found).
+ * Mapped to the "synthwave" theme via theme-map.ts (base/agent/themes is
+ * symlinked to the repo-root themes/ directory, so Pi finds it globally).
  *
  * Usage: pi -e extensions/minimal.ts
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
-import { applyExtensionDefaults, registerThemeDiscovery } from "./theme-map.ts";
+import { applyExtensionDefaults } from "./theme-map.ts";
 
 export default function (pi: ExtensionAPI) {
-  registerThemeDiscovery(pi);
-
   pi.on("session_start", async (_event, ctx) => {
     applyExtensionDefaults(import.meta.url, ctx);
     ctx.ui.setFooter((_tui, theme, _footerData) => ({

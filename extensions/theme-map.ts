@@ -1,11 +1,11 @@
 /**
  * theme-map.ts — Per-extension default theme assignments
  *
- * Themes live in the repo-root themes/ directory (sibling of extensions/), not
- * under .pi/ or ~/.pi/agent/, so Pi never auto-discovers them. Extensions must
- * call registerThemeDiscovery(pi) once in their factory body to tell Pi where
- * to find them (via the resources_discover event), then applyExtensionTheme /
- * applyExtensionDefaults in session_start to actually switch to the mapped theme.
+ * Themes live in the repo-root themes/ directory (sibling of extensions/).
+ * base/agent/themes is a symlink to it, so Pi's own global discovery
+ * (~/.pi/agent/themes/) picks them up at startup — no extension needs to
+ * register the path itself. applyExtensionTheme / applyExtensionDefaults in
+ * session_start just switch to each extension's mapped theme.
  *
  * Available themes (themes/):
  *   catppuccin-mocha · cyberpunk · dracula · everforest · gruvbox
@@ -13,26 +13,35 @@
  *   synthwave        · tokyo-night
  */
 
-import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { basename, dirname, join } from "path";
-import { fileURLToPath } from "url";
+import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { realpathSync } from "node:fs";
+import { basename, dirname, join, sep } from "node:path";
+import { fileURLToPath } from "node:url";
 
-// Absolute path to the repo-root themes/ directory, resolved relative to this
-// file (not ctx.cwd), so it works regardless of where pi is launched from.
-const THEMES_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "themes");
+// Real path of the repo-root themes/ directory, resolved once at load time.
+// Used to tell "our" themes apart from Pi's own bundled dark/light in the
+// /theme picker, regardless of how Pi reports the path (symlinked via
+// base/agent/themes, or the repo-root path directly).
+const CUSTOM_THEMES_DIR = (() => {
+  try {
+    return realpathSync(join(dirname(fileURLToPath(import.meta.url)), "..", "themes"));
+  } catch {
+    return null;
+  }
+})();
 
-/**
- * Tell Pi to load themes from the repo-root themes/ directory.
- * Call this once in each extension's factory body (not inside session_start —
- * resources_discover must be registered before it fires on startup).
- *
- *   export default function (pi: ExtensionAPI) {
- *     registerThemeDiscovery(pi);
- *     pi.on("session_start", async (_event, ctx) => { applyExtensionDefaults(import.meta.url, ctx); ... });
- *   }
- */
-export function registerThemeDiscovery(pi: ExtensionAPI): void {
-  pi.on("resources_discover", async () => ({ themePaths: [THEMES_DIR] }));
+/** Tag a theme's file path as "[custom]" (repo-root themes/) or "[default]" (Pi's own). */
+export function themeSourceTag(themePath: string | undefined): "[custom]" | "[default]" {
+  if (!themePath || !CUSTOM_THEMES_DIR) return "[default]";
+  try {
+    const real = realpathSync(themePath);
+    if (real === CUSTOM_THEMES_DIR || real.startsWith(CUSTOM_THEMES_DIR + sep)) {
+      return "[custom]";
+    }
+  } catch {
+    // Path doesn't resolve (e.g. a virtual/in-memory theme) — treat as default.
+  }
+  return "[default]";
 }
 
 // ── Theme assignments ──────────────────────────────────────────────────────
@@ -79,12 +88,9 @@ function extensionName(fileUrl: string): string {
  * @param fileUrl   Pass `import.meta.url` from the calling extension file.
  * @param ctx       The ExtensionContext from the session_start handler.
  *
- * Deferred 150 ms: `resources_discover` (which registers our repo-root themes/
- * directory via registerThemeDiscovery) fires AFTER `session_start` in Pi's
- * startup lifecycle, so calling ctx.ui.setTheme() synchronously here would
- * always fail — the theme isn't registered yet. Waiting lets resources_discover
- * complete first. Because of this, the call is fire-and-forget (no success/failure
- * return value is available to the caller).
+ * Deferred 150 ms to let Pi's own startup theme resolution and initial TUI
+ * render settle before we override it. Because of this, the call is
+ * fire-and-forget (no success/failure return value is available to the caller).
  */
 export function applyExtensionTheme(fileUrl: string, ctx: ExtensionContext): void {
   if (!ctx.hasUI) return;
@@ -152,14 +158,11 @@ function applyExtensionTitle(ctx: ExtensionContext): void {
 /**
  * Apply both the mapped theme AND the terminal title for an extension.
  * Drop-in replacement for applyExtensionTheme — call this in every session_start.
- * Still requires registerThemeDiscovery(pi) in the factory body (see above) —
- * this alone does not register the repo-root themes/ directory with Pi.
  *
  * Usage:
- *   import { applyExtensionDefaults, registerThemeDiscovery } from "./theme-map.ts";
+ *   import { applyExtensionDefaults } from "./theme-map.ts";
  *
  *   export default function (pi: ExtensionAPI) {
- *     registerThemeDiscovery(pi);
  *     pi.on("session_start", async (_event, ctx) => {
  *       applyExtensionDefaults(import.meta.url, ctx);
  *       // ... rest of handler

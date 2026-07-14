@@ -1,16 +1,16 @@
 /**
  * Theme Cycler — Keyboard shortcuts to cycle through available themes
  *
- * Registers the repo-root themes/ directory via registerThemeDiscovery, so
- * getAllThemes() (and therefore cycling and /theme) includes all 11 custom
- * themes there, not just the built-in dark/light.
+ * base/agent/themes is symlinked to the repo-root themes/ directory, so Pi's
+ * own global discovery already makes getAllThemes() (and therefore cycling
+ * and /theme) include all 11 custom themes there, not just built-in dark/light.
  *
  * Shortcuts:
- *   Ctrl+X          — Cycle theme forward
+ *   F2              — Cycle theme forward
  *   Ctrl+Q          — Cycle theme backward
  *
  * Commands:
- *   /theme          — Open select picker to choose a theme
+ *   /theme          — Open select picker to choose a theme (tagged [custom]/[default])
  *   /theme <name>   — Switch directly by name
  *
  * Features:
@@ -27,11 +27,9 @@ import type {
   ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth } from "@earendil-works/pi-tui";
-import { applyExtensionDefaults, registerThemeDiscovery } from "./theme-map.ts";
+import { applyExtensionDefaults, themeSourceTag } from "./theme-map.ts";
 
 export default function (pi: ExtensionAPI) {
-  registerThemeDiscovery(pi);
-
   let swatchTimer: ReturnType<typeof setTimeout> | null = null;
 
   function updateStatus(ctx: ExtensionContext) {
@@ -122,7 +120,7 @@ export default function (pi: ExtensionAPI) {
 
   // --- Shortcuts ---
 
-  pi.registerShortcut("ctrl+x", {
+  pi.registerShortcut("f2", {
     description: "Cycle theme forward",
     handler: async (ctx) => {
       cycleTheme(ctx, 1);
@@ -162,9 +160,8 @@ export default function (pi: ExtensionAPI) {
       }
 
       const items = themes.map((t) => {
-        const desc = t.path ? t.path : "built-in";
         const active = t.name === ctx.ui.theme.name ? " (active)" : "";
-        return `${t.name}${active} — ${desc}`;
+        return `${t.name}${active} ${themeSourceTag(t.path)}`;
       });
 
       const selected = await ctx.ui.select("Select Theme", items);

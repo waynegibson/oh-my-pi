@@ -15,11 +15,11 @@
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { isToolCallEventType } from "@earendil-works/pi-coding-agent";
-import * as fs from "fs";
-import * as os from "os";
-import * as path from "path";
+import * as fs from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
 import { parse as yamlParse } from "yaml";
-import { applyExtensionDefaults, registerThemeDiscovery } from "./theme-map.ts";
+import { applyExtensionDefaults } from "./theme-map.ts";
 
 interface Rule {
   pattern: string;
@@ -35,8 +35,6 @@ interface Rules {
 }
 
 export default function (pi: ExtensionAPI) {
-  registerThemeDiscovery(pi);
-
   let rules: Rules = {
     bashToolPatterns: [],
     zeroAccessPaths: [],
@@ -154,6 +152,7 @@ export default function (pi: ExtensionAPI) {
     }
 
     ctx.ui.setStatus(
+      "damage-control",
       `🛡️ Damage-Control Active: ${rules.bashToolPatterns.length + rules.zeroAccessPaths.length + rules.readOnlyPaths.length + rules.noDeletePaths.length} Rules`,
     );
   });
@@ -295,6 +294,7 @@ export default function (pi: ExtensionAPI) {
 
         if (!confirmed) {
           ctx.ui.setStatus(
+            "damage-control",
             `⚠️ Last Violation Blocked: ${violationReason.slice(0, 30)}...`,
           );
           pi.appendEntry("damage-control-log", {
@@ -321,6 +321,7 @@ export default function (pi: ExtensionAPI) {
           `🛑 Damage-Control: Blocked ${event.toolName} due to ${violationReason}`,
         );
         ctx.ui.setStatus(
+          "damage-control",
           `⚠️ Last Violation: ${violationReason.slice(0, 30)}...`,
         );
         pi.appendEntry("damage-control-log", {
