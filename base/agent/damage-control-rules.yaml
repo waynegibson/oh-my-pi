@@ -159,6 +159,21 @@ bashToolPatterns:
   - pattern: '\bDELETE\s+FROM\s+\w+\s+WHERE\b.*\bid\s*='
     reason: SQL DELETE with specific ID
     ask: true
+  - pattern: '\$\('
+    reason: Command substitution can hide a dangerous command from these patterns
+    ask: true
+  - pattern: '`[^`]*`'
+    reason: Backtick command substitution can hide a dangerous command from these patterns
+    ask: true
+  - pattern: '\bbase64\s+(-d|--decode)\b'
+    reason: base64 decode can hide a dangerous command from these patterns
+    ask: true
+  - pattern: '\beval\b'
+    reason: eval executes a dynamically constructed string, bypassing these patterns
+    ask: true
+  - pattern: '\bxxd\s+(-r|-r\s|--revert|--reverse)\b'
+    reason: Hex decode can hide a dangerous command from these patterns
+    ask: true
 
 zeroAccessPaths:
   - ".env"

@@ -24,18 +24,18 @@ Personal configuration for [Pi](https://pi.dev) — a minimal, extensible termin
 ├── .env.sample                     # Template for provider API keys — copy to .env (gitignored)
 ├── .claude/commands/prime.md       # Claude Code slash command: onboard onto Pi's capabilities
 ├── justfile                        # Recipes for launching pi with specific extension stacks
-├── .pi/                            # Pi's actual global config root — repo root is symlinked to ~/.pi,
-│   │
-│   ├── agent/                       # This resolves as ~/.pi/agent/
-│   ├── settings.json                # Theme, default provider/model, thinking level
-│   ├── models.json                  # Custom provider definitions (local MLX server `olmx`)
-│   ├── auth.json                    # Provider credentials — see below (gitignored)
-│   ├── themes/                      # Symlink -> ../../themes, so Pi's global discovery finds them
-│   ├── damage-control-rules.yaml    # Rules consumed by extensions/damage-control*.ts
-│   └── sessions/                    # Auto-saved conversation history (gitignored)
+├── package.json                    # devDependencies for editor/type-checking support (see below);
+│                                    # yaml is the one real runtime dependency, used by damage-control*.ts
+├── .pi/                            # Pi's actual global config root — repo root's base/ is symlinked to ~/.pi
+│   └── agent/                       # This resolves as ~/.pi/agent/
+│       ├── settings.json            # Theme, default provider/model, thinking level
+│       ├── models.json              # Custom provider definitions (local MLX server `olmx`)
+│       ├── auth.json                # Provider credentials — see below (gitignored)
+│       ├── themes/                  # Symlink -> ../../themes, so Pi's global discovery finds them
+│       ├── damage-control-rules.yaml # Rules consumed by extensions/damage-control*.ts
+│       └── sessions/                 # Auto-saved conversation history (gitignored)
 ├── extensions/                     # Project-local extensions — separate from agent/, so they stay
 │   │                                opt-in instead of auto-loading globally like agent/extensions/ would
-│   ├── package.json                # npm deps for extensions (currently: yaml, for damage-control-rules.yaml)
 │   ├── theme-map.ts                # Shared helper: per-extension theme + title assignment
 │   ├── damage-control.ts           # Hard block — stops and asks the user on every rule violation
 │   ├── damage-control-continue.ts  # Same rules, but lets the agent continue past non-destructive blocks
