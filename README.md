@@ -103,12 +103,14 @@ piext plan-mode minimal theme-cycler           # plan mode + minimal footer + th
 
 Short aliases (`pi:dc`, `pi:dcc`, `pi:theme`, `pi:plan`, `pi:list`) wrap the common combos above — see `~/.dotfiles/aliases.zsh`.
 
-For extensions you want *always* loaded (no `piext`/`-e` needed at all), run `npm run toggle-extensions` (or `node scripts/toggle-extensions.mjs`) — an interactive checkbox picker (`@inquirer/prompts`) that writes **relative** paths into `base/agent/settings.json`'s `packages` array, as local package sources. Two things this deliberately avoids, confirmed by reading the installed package's own source (`dist/core/package-manager.js`, `dist/core/resource-loader.js`) rather than assumed from docs:
+For extensions you want *always* loaded (no `piext`/`-e` needed at all), run `npm run toggle-extensions` (or `node scripts/toggle-extensions.mjs`) — an interactive checkbox picker (`@inquirer/prompts`) that writes **absolute** paths into `base/agent/settings.json`'s `extensions` array — the documented "additional paths via settings.json" mechanism (docs/extensions.md), confirmed end-to-end with a real interactive `pi` session (the `[Extensions]` startup banner appears, and `minimal.ts`'s custom footer actually renders).
 
-- **Not the plain `extensions` array** (docs/extensions.md's "additional paths via settings.json") — that one resolves relative paths against `cwd`, which would break depending on where `pi` happens to be launched from, and only absolute paths are actually stable there — which is exactly what we don't want baked into a version-controlled file.
-- **Not a symlink into `base/agent/extensions/`** — every extension here imports `./theme-map.ts`, and jiti (Pi's `.ts` loader) resolves relative imports via Node's classic CJS algorithm, which does not resolve a symlinked directory's realpath first. A symlink-based version of this was tried and reverted because that import silently failed to resolve.
+Two alternatives were tried and reverted after failing that same end-to-end check, despite each looking correct from source-reading alone:
 
-The `packages` array's local-path entries resolve relative paths against `agentDir` (`base/agent/`) specifically — portable across machines, no absolute path ever committed, and it correctly falls back to treating a bare directory with no `package.json` (like `plan-mode/`) as a single directory-style extension.
+- **Relative paths in the `packages` array**, on the theory that local package sources there resolve against `agentDir` rather than `cwd` — plausible from `dist/core/package-manager.js`, but empirically the extensions never loaded (no `[Extensions]` banner, no footer change).
+- **A symlink into `base/agent/extensions/`** — every extension here imports `./theme-map.ts`, and jiti (Pi's `.ts` loader) resolves relative imports via Node's classic CJS algorithm, which does not resolve a symlinked directory's realpath first, so that import failed to resolve.
+
+Trade-off of the working version: absolute paths are machine-specific, so this one array in `base/agent/settings.json` isn't portable if the repo is cloned to a different path — re-run `npm run toggle-extensions` once after cloning elsewhere to regenerate correct paths for that machine.
 
 All 11 custom themes are available everywhere `pi` runs — `base/agent/themes` is a symlink to the repo-root `themes/` directory, so Pi's own global theme discovery (`~/.pi/agent/themes/`) picks them up without any extension needing to register the path itself.
 

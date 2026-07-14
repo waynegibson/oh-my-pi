@@ -6,5 +6,9 @@
   "defaultThinkingLevel": "medium",
   "prompts": [
     "../.claude/commands"
+  ],
+  "extensions": [
+    "/Volumes/SSDSCX_DATA/workspace/applications/oh-my-pi/extensions/minimal.ts",
+    "/Volumes/SSDSCX_DATA/workspace/applications/oh-my-pi/extensions/plan-mode"
   ]
 }

@@ -2,27 +2,23 @@
 /**
  * Interactively choose which extensions/ are always loaded (globally, no -e flag needed).
  *
- * Writes relative paths into base/agent/settings.json's "packages" array (as local package
- * sources) — confirmed by reading the installed package's own source
- * (dist/core/package-manager.js: getBaseDirForScope, resolveLocalExtensionSource) rather
- * than assumed from docs. For "user"/global scope, local package paths in "packages"
- * resolve relative to agentDir (base/agent/ here), so a relative path like
- * "../../extensions/foo.ts" is portable across machines and doesn't leak an absolute,
- * machine-specific path into a version-controlled file.
+ * Writes absolute paths into base/agent/settings.json's "extensions" array — the
+ * documented "Additional paths via settings.json" mechanism (docs/extensions.md). The
+ * doc's own example shows absolute paths here specifically (its "packages" array example
+ * only ever shows npm:/git: sources, never a local path) — an earlier attempt to write
+ * relative local paths into "packages" instead was reverted after it was verified, via a
+ * real interactive pi session capture (not just source-reading), to not actually load:
+ * the startup banner showed no [Extensions] section and minimal.ts's custom footer never
+ * applied. "extensions" with absolute paths is the version confirmed to work end-to-end.
  *
- * This intentionally does NOT use the plain "extensions" array (docs/extensions.md's
- * "Additional paths via settings.json") — that one resolves relative paths against cwd
- * (dist/core/resource-loader.js: resolveResourcePath), which would break depending on
- * where `pi` happens to be launched from. It also does NOT symlink into
- * base/agent/extensions/ — an earlier attempt at that was reverted because jiti (Pi's .ts
- * loader) resolves relative imports via Node's classic CJS algorithm, which does not
- * resolve a symlinked directory's realpath first, and every extension here imports
- * "./theme-map.ts" or "../theme-map.ts".
+ * This also does NOT symlink into base/agent/extensions/ — an earlier attempt at that was
+ * reverted because jiti (Pi's .ts loader) resolves relative imports via Node's classic CJS
+ * algorithm, which does not resolve a symlinked directory's realpath first, and every
+ * extension here imports "./theme-map.ts" or "../theme-map.ts".
  *
- * A bare directory with no package.json (like plan-mode/) is handled correctly: package-
- * manager.js's resolveLocalExtensionSource falls back to treating the whole directory as
- * a single extension (looking for index.ts) when it finds no package manifest or
- * conventional resource subdirectories inside it.
+ * Trade-off: absolute paths are machine-specific, so base/agent/settings.json's
+ * "extensions" array isn't portable if this repo is cloned to a different path. Re-run
+ * this script once after cloning elsewhere to regenerate correct paths for that machine.
  *
  * Usage: node scripts/toggle-extensions.mjs
  * Ctrl+C at any prompt cancels cleanly with no changes written.
@@ -30,13 +26,12 @@
 
 import { checkbox, select } from "@inquirer/prompts";
 import { readFileSync, writeFileSync, readdirSync, statSync } from "node:fs";
-import { dirname, join, relative } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const EXT_DIR = join(REPO_ROOT, "extensions");
 const SETTINGS_PATH = join(REPO_ROOT, "base", "agent", "settings.json");
-const SETTINGS_DIR = dirname(SETTINGS_PATH);
 
 // Shared helper modules with no default export — not loadable as extensions themselves.
 const EXCLUDE = new Set(["theme-map"]);
@@ -57,20 +52,16 @@ function discoverCandidates() {
     if (entry.isFile() && entry.name.endsWith(".ts")) {
       const name = entry.name.slice(0, -3);
       if (!EXCLUDE.has(name)) {
-        candidates.push(makeCandidate(name, join(EXT_DIR, entry.name)));
+        candidates.push({ name, path: join(EXT_DIR, entry.name) });
       }
     } else if (entry.isDirectory()) {
       const indexPath = join(EXT_DIR, entry.name, "index.ts");
       if (statSyncSafe(indexPath)) {
-        candidates.push(makeCandidate(entry.name, join(EXT_DIR, entry.name)));
+        candidates.push({ name: entry.name, path: join(EXT_DIR, entry.name) });
       }
     }
   }
   return candidates.sort((a, b) => a.name.localeCompare(b.name));
-}
-
-function makeCandidate(name, absPath) {
-  return { name, absPath, relPath: relative(SETTINGS_DIR, absPath) };
 }
 
 function statSyncSafe(path) {
@@ -100,15 +91,15 @@ function writeSettings(settings) {
 async function resolveConflicts(selected, candidatesByName) {
   let resolved = selected;
   for (const group of MUTUALLY_EXCLUSIVE_GROUPS) {
-    const groupRelPaths = group.map((name) => candidatesByName.get(name)?.relPath).filter(Boolean);
-    const selectedInGroup = groupRelPaths.filter((p) => resolved.includes(p));
+    const groupPaths = group.map((name) => candidatesByName.get(name)?.path).filter(Boolean);
+    const selectedInGroup = groupPaths.filter((p) => resolved.includes(p));
     if (selectedInGroup.length <= 1) continue;
 
-    const selectedNames = group.filter((name) => selectedInGroup.includes(candidatesByName.get(name)?.relPath));
+    const selectedNames = group.filter((name) => selectedInGroup.includes(candidatesByName.get(name)?.path));
     const keep = await select({
       message: `${selectedNames.join(" and ")} conflict (same events, would double-fire) — pick one to keep:`,
       choices: [
-        ...selectedNames.map((name) => ({ name: `Keep ${name}`, value: candidatesByName.get(name).relPath })),
+        ...selectedNames.map((name) => ({ name: `Keep ${name}`, value: candidatesByName.get(name).path })),
         { name: "Neither — drop both and continue", value: NEITHER },
         { name: "Go back and reselect", value: BACK_TO_SELECTION },
       ],
@@ -132,16 +123,16 @@ async function main() {
   const candidatesByName = new Map(candidates.map((c) => [c.name, c]));
 
   const settings = readSettings();
-  const currentPackages = Array.isArray(settings.packages) ? settings.packages : [];
-  const candidateRelPaths = new Set(candidates.map((c) => c.relPath));
+  const currentExtensions = Array.isArray(settings.extensions) ? settings.extensions : [];
+  const candidatePaths = new Set(candidates.map((c) => c.path));
 
-  // Preserve any existing packages entries that aren't one of our known candidates (npm:/git:
-  // sources, or an unrelated local extension added by hand) — only manage entries we own.
-  const untouchedPackages = currentPackages.filter((p) => !candidateRelPaths.has(p));
+  // Preserve any existing extensions entries that aren't one of our known candidates (an
+  // unrelated local extension added by hand) — only manage entries we own.
+  const untouchedExtensions = currentExtensions.filter((p) => !candidatePaths.has(p));
 
   // Starts pre-checked from whatever's already configured; if a conflict resolution sends us
   // back here, checkedByDefault carries over the attempted selection instead of resetting.
-  let checkedByDefault = currentPackages;
+  let checkedByDefault = currentExtensions;
 
   let selected;
   while (true) {
@@ -149,8 +140,8 @@ async function main() {
       message: "Select extensions to always load globally (space to toggle, a to select all, i to invert, enter to confirm):",
       choices: candidates.map((c) => ({
         name: c.name,
-        value: c.relPath,
-        checked: checkedByDefault.includes(c.relPath),
+        value: c.path,
+        checked: checkedByDefault.includes(c.path),
       })),
     });
 
@@ -163,12 +154,12 @@ async function main() {
     break;
   }
 
-  settings.packages = [...untouchedPackages, ...selected];
+  settings.extensions = [...untouchedExtensions, ...selected];
   writeSettings(settings);
 
   const selectedSet = new Set(selected);
-  const added = candidates.filter((c) => selectedSet.has(c.relPath) && !currentPackages.includes(c.relPath));
-  const removed = candidates.filter((c) => !selectedSet.has(c.relPath) && currentPackages.includes(c.relPath));
+  const added = candidates.filter((c) => selectedSet.has(c.path) && !currentExtensions.includes(c.path));
+  const removed = candidates.filter((c) => !selectedSet.has(c.path) && currentExtensions.includes(c.path));
 
   if (added.length > 0) {
     console.log(`Added to global extensions: ${added.map((c) => c.name).join(", ")}`);
