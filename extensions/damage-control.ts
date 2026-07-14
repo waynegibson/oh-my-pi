@@ -278,6 +278,16 @@ export default function (pi: ExtensionAPI) {
               break;
             }
           }
+          // Check No-Delete paths — bash's rm/mv rule only fires on shell commands,
+          // so write/edit can otherwise clobber a protected file's content untouched.
+          if (!violationReason) {
+            for (const ndp of rules.noDeletePaths) {
+              if (isPathMatch(resolved, ndp, ctx.cwd)) {
+                violationReason = `Modification of protected path restricted: ${ndp}`;
+                break;
+              }
+            }
+          }
         }
       }
     }
