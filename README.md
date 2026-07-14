@@ -23,7 +23,6 @@ Personal configuration for [Pi](https://pi.dev) — a minimal, extensible termin
 .
 ├── .env.sample                     # Template for provider API keys — copy to .env (gitignored)
 ├── .claude/commands/prime.md       # Claude Code slash command: onboard onto Pi's capabilities
-├── justfile                        # Recipes for launching pi with specific extension stacks
 ├── package.json                    # devDependencies for editor/type-checking support (see below);
 │                                    # yaml is the one real runtime dependency, used by damage-control*.ts
 ├── .pi/                            # Pi's actual global config root — repo root's base/ is symlinked to ~/.pi
@@ -79,7 +78,7 @@ Pi resolves provider credentials in this order: CLI `--api-key` flag → `auth.j
 Two tiers, kept deliberately separate:
 
 - **Global** — `agent/{prompts,skills,extensions,themes}/`. This repo's root is symlinked to `~/.pi`, so anything here resolves as `~/.pi/agent/...` and auto-loads in every project. Only `themes/` is populated so far, as a symlink to the repo-root `themes/` directory (see below) — `prompts/`, `skills/`, `extensions/` are still empty.
-- **Project-local, opt-in** — `extensions/*.ts` at the repo root, kept as a sibling of `agent/` rather than nested inside it, so extensions never become global or get auto-loaded by Pi; they're loaded explicitly via `just` recipes in `justfile`. `themes/*.json` also lives at the repo root as the canonical source, but is exposed globally via the `base/agent/themes` symlink rather than being project-local-only.
+- **Project-local, opt-in** — `extensions/*.ts` at the repo root, kept as a sibling of `agent/` rather than nested inside it, so extensions never become global or get auto-loaded by Pi; they're loaded explicitly, by name, via the `piext()` shell function (see below). `themes/*.json` also lives at the repo root as the canonical source, but is exposed globally via the `base/agent/themes` symlink rather than being project-local-only.
 
 Current extensions (`extensions/`):
 
@@ -92,16 +91,17 @@ Current extensions (`extensions/`):
 | `minimal.ts`                 | Replaces the footer with just model name + a 10-block context usage bar                                                                     |
 | `plan-mode/`                 | `/plan` or `Ctrl+Alt+P` toggles read-only exploration (disables `edit`/`write`, tokenizes/allowlists `bash`), owns a `plan_mode_question` clarifying-questions tool, extracts a numbered plan, tracks `[DONE:n]` progress during execution — base ported from Pi's own `examples/extensions/plan-mode/`, bash-safety + question-tool ported from [narumiruna/pi-extensions](https://github.com/narumiruna/pi-extensions) |
 
-Run via `just` (see `justfile` for the exact `-e` flag stacks, e.g. `just ext-damage-control` loads `damage-control.ts` + `minimal.ts` + `theme-cycler.ts` together):
+Run via `piext` (a shell function in `~/.dotfiles/functions_zsh`, not part of this repo) — pass extension names, mix any combination, from any project directory. `piext` resolves each name to `extensions/<name>.ts` or `extensions/<name>/index.ts` and runs plain `pi -e ...` with absolute paths; nothing loads unless you name it:
 
 ```bash
-just                        # list all recipes
-just pi                      # plain pi, no extensions
-just ext-damage-control      # hard-block safety gate + minimal footer + theme cycling
-just ext-damage-control-continue  # adaptive-continue variant of the above
-just ext-theme-cycler        # just the theme cycler + minimal footer
-just ext-plan-mode           # plan mode + minimal footer + theme cycling
+piext                                          # or piext --list: show available extension names
+piext damage-control minimal theme-cycler      # hard-block safety gate + minimal footer + theme cycling
+piext damage-control-continue minimal theme-cycler  # adaptive-continue variant of the above
+piext theme-cycler minimal                     # just the theme cycler + minimal footer
+piext plan-mode minimal theme-cycler           # plan mode + minimal footer + theme cycling
 ```
+
+Short aliases (`pi:dc`, `pi:dcc`, `pi:theme`, `pi:plan`, `pi:list`) wrap the common combos above — see `~/.dotfiles/aliases.zsh`.
 
 All 11 custom themes are available everywhere `pi` runs — `base/agent/themes` is a symlink to the repo-root `themes/` directory, so Pi's own global theme discovery (`~/.pi/agent/themes/`) picks them up without any extension needing to register the path itself.
 
