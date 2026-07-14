@@ -59,6 +59,7 @@ export const THEME_MAP: Record<string, string> = {
   "damage-control-continue": "gruvbox", // same family as damage-control
   minimal: "synthwave", // synthwave by default now!
   "pi-pi": "rose-pine", // warm creative meta-agent
+  "plan-mode": "nord", // cool, deliberate, read-only planning
   "pure-focus": "everforest", // calm, distraction-free
   "purpose-gate": "tokyo-night", // intentional, sharp focus
   "session-replay": "catppuccin-mocha", // soft, reflective history
@@ -72,12 +73,23 @@ export const THEME_MAP: Record<string, string> = {
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 
+/**
+ * Derive an extension's name from a file or directory path. For folder-style
+ * extensions (extensions/<name>/index.ts), the basename is "index" — fall
+ * back to the parent directory name so THEME_MAP lookups still match.
+ */
+function baseExtensionName(rawPath: string): string {
+  const trimmed = rawPath.replace(/[\\/]+$/, "");
+  const base = basename(trimmed).replace(/\.[^.]+$/, "");
+  return base === "index" ? basename(dirname(trimmed)) : base;
+}
+
 /** Derive the extension name (e.g. "minimal") from its import.meta.url. */
 function extensionName(fileUrl: string): string {
   const filePath = fileUrl.startsWith("file://")
     ? fileURLToPath(fileUrl)
     : fileUrl;
-  return basename(filePath).replace(/\.[^.]+$/, "");
+  return baseExtensionName(filePath);
 }
 
 // ── Theme ──────────────────────────────────────────────────────────────────
@@ -133,7 +145,7 @@ function primaryExtensionName(): string | null {
   const argv = process.argv;
   for (let i = 0; i < argv.length - 1; i++) {
     if (argv[i] === "-e" || argv[i] === "--extension") {
-      return basename(argv[i + 1]).replace(/\.[^.]+$/, "");
+      return baseExtensionName(argv[i + 1]);
     }
   }
   return null;

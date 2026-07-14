@@ -18,3 +18,7 @@ ext-damage-control-continue:
 # Theme cycler: Ctrl+X forward, Ctrl+Q backward, /theme picker
 ext-theme-cycler:
     pi -e extensions/theme-cycler.ts -e extensions/minimal.ts
+
+# Plan mode: read-only exploration, /plan to toggle, Ctrl+Alt+P shortcut
+ext-plan-mode:
+    pi -e extensions/plan-mode/index.ts -e extensions/minimal.ts -e extensions/theme-cycler.ts
