@@ -2,7 +2,7 @@
   "name": "oh-my-pi",
   "private": true,
   "type": "module",
-  "description": "Personal configuration for a minimal, extensible terminal coding agent",
+  "description": "Personal configuration for a minimal, extensible terminal pi coding agent",
   "workspaces": [
     "extensions/*"
   ],
