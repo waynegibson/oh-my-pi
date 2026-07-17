@@ -1,21 +1,28 @@
 # oh-my-pi
 
-Personal configuration for [Pi](https://pi.dev) — a minimal, extensible terminal coding agent (`@earendil-works/pi-coding-agent`). `~/.pi` is symlinked to the root of this repo (`base/` lives directly at the repo root) so settings, models, and credential _references_ stay version-controlled and portable across machines.
+Personal configuration for [Pi](https://pi.dev) — a minimal, extensible terminal coding agent (`@earendil-works/pi-coding-agent`). `~/.pi/agent/` is **live, per-machine state** (`settings.json`, `models.json`, `auth.json`, `sessions/`) — it is not symlinked from this repo. This repo holds only the shareable, versioned source material: extensions, themes, job presets, and the `ohmypi` CLI that wires them together on demand.
 
 ## Setup
 
-1. Symlink this repo to `~/.pi`:
+1. Install dependencies and link the CLI globally:
    ```bash
-   ln -s /path/to/oh-my-pi ~/.pi
+   npm install
+   npm link
    ```
-2. Copy the env template and fill in your keys:
+2. Symlink the one piece of live config this repo still owns the source of truth for:
+   ```bash
+   ln -s /path/to/oh-my-pi/damage-control-rules.yaml ~/.pi/agent/damage-control-rules.yaml
+   ```
+3. Copy the env template and fill in your keys:
    ```bash
    cp .env.sample .env
    ```
-3. Source it before starting Pi — Pi does not auto-load `.env` files, so this must happen every session:
+4. Source it before starting Pi — Pi does not auto-load `.env` files, so this must happen every session:
    ```bash
    source .env && pi
    ```
+
+`~/.pi/agent/settings.json`, `models.json`, `auth.json`, and `sessions/` are not part of this repo — they're local, per-machine state you manage directly (or via `ohmypi toggle`, see below).
 
 ## Structure
 
@@ -23,21 +30,15 @@ Personal configuration for [Pi](https://pi.dev) — a minimal, extensible termin
 .
 ├── .env.sample                     # Template for provider API keys — copy to .env (gitignored)
 ├── .claude/commands/prime.md       # Claude Code slash command: onboard onto Pi's capabilities
-├── package.json                    # devDependencies for editor/type-checking support (see below);
-│                                    # yaml is the one real runtime dependency, used by damage-control*.ts
-├── .pi/                            # Pi's actual global config root — repo root's base/ is symlinked to ~/.pi
-│   └── agent/                       # This resolves as ~/.pi/agent/
-│       ├── settings.json            # Theme (built-in "dark" — see below), default provider/model,
-│       │                            # thinking level, extensions array (see below)
-│       ├── models.json              # Custom provider definitions (local MLX server `olmx`)
-│       ├── auth.json                # Provider credentials — see below (gitignored)
-│       ├── damage-control-rules.yaml # Rules consumed by extensions/damage-control*.ts
-│       └── sessions/                 # Auto-saved conversation history (gitignored)
+├── package.json                    # commander/zod/chalk/@inquirer/prompts/yaml deps; bin: ohmypi
+├── jobs.json                       # Named extension(+theme) presets — see "Extending Pi" below
+├── damage-control-rules.yaml       # Canonical rules source — symlinked to
+│                                    # ~/.pi/agent/damage-control-rules.yaml (see Setup)
 ├── lib/                            # Shared helper modules — not extensions themselves, so kept
 │   └── theme-map.ts                 # out of extensions/ where Pi's auto-discovery would try to
 │                                     # load them as one. Per-extension theme/title assignment.
-├── extensions/                     # Project-local extensions — separate from agent/, so they stay
-│   │                                opt-in instead of auto-loading globally like agent/extensions/ would
+├── extensions/                     # Extensions never auto-load by existing in this repo — they're
+│   │                                loaded explicitly via `ohmypi run` or persisted via `ohmypi toggle`
 │   ├── damage-control.ts           # Hard block — stops and asks the user on every rule violation
 │   ├── damage-control-continue.ts  # Same rules, but lets the agent continue past non-destructive blocks
 │   ├── theme-cycler.ts             # F2/Ctrl+Q theme cycling, /theme picker
@@ -48,10 +49,13 @@ Personal configuration for [Pi](https://pi.dev) — a minimal, extensible termin
 │       ├── tool-policy.ts           # Bash safety tokenizer (ported from narumiruna/pi-extensions)
 │       ├── question-tool.ts         # Owned plan_mode_question tool (ported from narumiruna/pi-extensions)
 │       └── README.md
-├── scripts/
-│   └── toggle-extensions.mjs       # Interactive checkbox picker — which extensions load globally
-└── themes/                         # Theme JSON files (11 custom themes) — canonical source. No
-                                     # symlink into base/agent/themes/ anymore (see "Themes" below)
+├── themes/                         # Theme JSON files (11 custom themes) — canonical source, reached
+│                                     # only via per-extension registration or `ohmypi run --theme`
+└── cli/                            # ohmypi — job-scoped extension/theme launcher (see below)
+    ├── index.mjs                    # commander entry, bin target
+    ├── lib/                          # discovery, settings I/O, jobs.json loading+validation,
+    │                                  # conflict checking, the shared non-interactive input resolver
+    └── commands/                     # run.mjs, toggle.mjs, list.mjs
 ```
 
 ## Authentication (`auth.json`)
@@ -79,60 +83,80 @@ Pi resolves provider credentials in this order: CLI `--api-key` flag → `auth.j
 
 ## Extending Pi
 
-Two tiers, kept deliberately separate:
-
-- **Global** — `agent/{prompts,skills,extensions,themes}/`. This repo's root is symlinked to `~/.pi`, so anything here resolves as `~/.pi/agent/...` and auto-loads in every project. Currently empty — the extensions this repo builds stay in the project-local tier below, activated either by `npm run toggle-extensions` (writing to `settings.json`'s `extensions` array, itself global-scope) or on demand via `piext`.
-- **Project-local, opt-in** — `extensions/*.ts` at the repo root, kept as a sibling of `agent/` rather than nested inside it, so extensions never auto-load by just existing in this repo; they're loaded explicitly, by name, via the `piext()` shell function (see below), or persistently via `npm run toggle-extensions`. `lib/theme-map.ts` is a sibling of `extensions/`, not inside it — it has no default export and isn't itself loadable as an extension, so it'd break auto-discovery if it lived there.
+Only extensions carry real per-request cost — each registers tool schemas that sit in every request whether used or not, and some conflict when stacked (see `damage-control` below). Themes are pure JSON with zero context cost; skills (none exist yet) are progressive-disclosure by Pi's own design. So job-scoped selection matters for **extensions**; themes just ride along with a job as a convenience.
 
 Current extensions (`extensions/`):
 
 | File                         | Purpose                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `damage-control.ts`          | Rule-based safety gate for the current project (`.pi/damage-control-rules.yaml`) — hard blocks and tells the agent to stop and ask the user                                                                                                                                                                                                                                                                              |
 | `damage-control-continue.ts` | Same rules, but the block feedback lets the agent keep working past non-destructive violations                                                                                                                                                                                                                                                                                                                           |
 | `theme-cycler.ts`            | F2/Ctrl+Q to cycle themes, `/theme` to pick one, status line + swatch widget                                                                                                                                                                                                                                                                                                                                             |
 | `minimal.ts`                 | Replaces the footer with just model name + a 10-block context usage bar                                                                                                                                                                                                                                                                                                                                                  |
 | `plan-mode/`                 | `/plan` or `Ctrl+Alt+P` toggles read-only exploration (disables `edit`/`write`, tokenizes/allowlists `bash`), owns a `plan_mode_question` clarifying-questions tool, extracts a numbered plan, tracks `[DONE:n]` progress during execution — base ported from Pi's own `examples/extensions/plan-mode/`, bash-safety + question-tool ported from [narumiruna/pi-extensions](https://github.com/narumiruna/pi-extensions) |
 
-Run via `piext` (a shell function in `~/.dotfiles/functions_zsh`, not part of this repo) — pass extension names, mix any combination, from any project directory. `piext` resolves each name to `extensions/<name>.ts` or `extensions/<name>/index.ts` and runs plain `pi -e ...` with absolute paths; nothing loads unless you name it:
+`damage-control` and `damage-control-continue` are mutually exclusive — they hook the same events and would double-fire if both loaded. `ohmypi` refuses this combination with a hard error rather than silently picking one.
 
-```bash
-piext                                          # or piext --list: show available extension names
-piext damage-control minimal theme-cycler      # hard-block safety gate + minimal footer + theme cycling
-piext damage-control-continue minimal theme-cycler  # adaptive-continue variant of the above
-piext theme-cycler minimal                     # just the theme cycler + minimal footer
-piext plan-mode minimal theme-cycler           # plan mode + minimal footer + theme cycling
+### `jobs.json` — named presets
+
+```json
+{
+  "backend-fix": { "extensions": ["damage-control-continue", "minimal"], "theme": "nord" },
+  "safe-explore": { "extensions": ["damage-control", "plan-mode", "minimal"], "theme": "gruvbox" }
+}
 ```
 
-Short aliases (`pi:dc`, `pi:dcc`, `pi:theme`, `pi:plan`, `pi:list`) wrap the common combos above — see `~/.dotfiles/aliases.zsh`.
+`ohmypi` validates this file at load time: every extension/theme name must exist, and no job may select two extensions from the same mutually-exclusive group.
 
-For extensions you want _always_ loaded (no `piext`/`-e` needed at all), run `npm run toggle-extensions` (or `node scripts/toggle-extensions.mjs`) — an interactive checkbox picker (`@inquirer/prompts`) that writes **absolute** paths into `base/agent/settings.json`'s `extensions` array — the documented "additional paths via settings.json" mechanism (docs/extensions.md), confirmed end-to-end with a real interactive `pi` session (the `[Extensions]` startup banner appears, and `minimal.ts`'s custom footer actually renders).
+### `ohmypi run` — ephemeral, one session
 
-Two alternatives were tried and reverted after failing that same end-to-end check, despite each looking correct from source-reading alone:
+```bash
+ohmypi run backend-fix                          # launch pi with the job's extensions + theme
+ohmypi run -e damage-control -e minimal          # ad hoc, no job needed
+ohmypi run backend-fix -t dracula                # override the job's theme
+ohmypi run backend-fix --dry-run                 # print the resolved plan as JSON, don't launch pi
+ohmypi run backend-fix -- --print "fix the bug"  # everything after -- passes straight to pi
+```
 
-- **Relative paths in the `packages` array**, on the theory that local package sources there resolve against `agentDir` rather than `cwd` — plausible from `dist/core/package-manager.js`, but empirically the extensions never loaded (no `[Extensions]` banner, no footer change).
-- **A symlink into `base/agent/extensions/`** — every extension here imports `../lib/theme-map.ts`, and jiti (Pi's `.ts` loader) resolves relative imports via Node's classic CJS algorithm, which does not resolve a symlinked directory's realpath first, so that import failed to resolve.
+With no job/flags given in an interactive terminal, `ohmypi run` prompts you to pick a job. Called non-interactively (no TTY, no flags) it fails loudly instead of guessing — this is what lets an orchestrator (e.g. a cmux-style tool spinning up one `pi` per window) call it deterministically: `ohmypi run <job> --dry-run` returns the resolved extension/theme paths for the orchestrator to inspect, or `ohmypi run <job>` launches directly.
 
-Trade-off of the working version: absolute paths are machine-specific, so this one array in `base/agent/settings.json` isn't portable if the repo is cloned to a different path — re-run `npm run toggle-extensions` once after cloning elsewhere to regenerate correct paths for that machine.
+Every subcommand resolves input in the same order: **explicit flags → `--json '<str>'`/piped stdin → environment variable (`OHMYPI_RUN`, `OHMYPI_TOGGLE_SET`) → interactive prompt** (only reached when stdin is a TTY).
+
+### `ohmypi toggle` — persistent, always-on
+
+```bash
+ohmypi toggle                          # interactive checkbox (replaces the old toggle-extensions.mjs script)
+ohmypi toggle --set minimal,theme-cycler   # non-interactive, full replacement list
+echo '{"set":["minimal"]}' | ohmypi toggle # same, via piped JSON
+```
+
+Writes **absolute** paths into the real `~/.pi/agent/settings.json`'s `extensions` array — the documented "additional paths via settings.json" mechanism (docs/extensions.md). This is the confirmed-working persistent mechanism; two alternatives were tried and reverted after failing an end-to-end check:
+
+- **Relative paths in the `packages` array** — plausible from source, but empirically never loaded (no `[Extensions]` startup banner, no footer change).
+- **A symlink into `~/.pi/agent/extensions/`** — every extension here imports `../lib/theme-map.ts`, and jiti (Pi's `.ts` loader) resolves relative imports via Node's classic CJS algorithm, which does not resolve a symlinked directory's realpath first, so that import failed.
+
+Because `settings.json`'s `extensions` array holds absolute, machine-specific paths, re-run `ohmypi toggle` once after cloning this repo to a different path on a new machine.
+
+### `ohmypi list [--json]`
+
+Lists available job/extension/theme names — the discovery step to call before `run`. `--json` emits `{"jobs":[...],"extensions":[...],"themes":[...]}` for scripts/orchestrators.
 
 ## Themes
 
-`themes/` (11 custom JSON files) is **not** symlinked into `base/agent/themes/` — Pi always scans that directory by default regardless of what's explicitly registered, so a blanket symlink there means every theme gets discovered (and shown in the startup `[Themes]` banner) on every single launch, whether or not anything needs more than one.
-
-Instead, each extension registers only what it needs via `lib/theme-map.ts`'s `registerThemeDiscovery()`, called once in every extension's factory body:
+Themes have zero context cost, so there's no need to scope them the way extensions are scoped — but they're also not blanket-discovered globally, to keep the startup `[Themes]` banner relevant to what's actually running. Each extension registers only what it needs via `lib/theme-map.ts`'s `registerThemeDiscovery()`, called once in every extension's factory body:
 
 - Any extension **other than** `theme-cycler.ts` registers just its own `THEME_MAP`-assigned theme file (e.g. `plan-mode` → only `nord.json`) — the banner shows exactly what's relevant to what's actually running.
-- `theme-cycler.ts` registers the whole `themes/` directory — cycling (`F2`/`Ctrl+Q`) or picking (`/theme`) needs the full set to mean anything. Stack it alongside anything else (`piext plan-mode theme-cycler minimal`) to get both the assigned theme _and_ the ability to override it.
+- `theme-cycler.ts` registers the whole `themes/` directory — cycling (`F2`/`Ctrl+Q`) or picking (`/theme`) needs the full set to mean anything. Stack it alongside anything else (`ohmypi run -e plan-mode -e theme-cycler -e minimal`) to get both the assigned theme _and_ the ability to override it.
+- `ohmypi run --theme <name>` (or a job's `"theme"` field in `jobs.json`) is a third path: it passes `--theme <path>` straight to `pi`'s own CLI flag, independent of any extension's registration.
 
-`base/agent/settings.json`'s own `"theme"` field is set to the built-in `"dark"`, not a custom theme — that field is Pi's own early-startup default, applied _before_ `resources_discover` fires, so a custom theme there would error and flash-fallback the moment no extension happens to register it first (this was tried and reverted after the error showed up in a real interactive session). Each extension's own dynamic `ctx.ui.setTheme()` call 150ms later is what actually applies a custom theme.
+`~/.pi/agent/settings.json`'s own `"theme"` field should stay the built-in `"dark"`, not a custom theme — that field is Pi's own early-startup default, applied _before_ `resources_discover` fires, so a custom theme there errors and flash-falls-back the moment no extension happens to register it first. Each extension's own dynamic `ctx.ui.setTheme()` call 150ms later is what actually applies a custom theme.
 
-One residual, harmless side effect: extensions with overlapping `THEME_MAP` assignments (`minimal.ts` and `theme-cycler.ts` both map to `synthwave`) produce a small theme-collision notice when stacked together — Pi resolves it correctly (keeps one, skips the duplicate copy), it's just a bit of startup noise, not a functional issue.
-
-All 11 custom themes are available everywhere `pi` runs — `base/agent/themes` is a symlink to the repo-root `themes/` directory, so Pi's own global theme discovery (`~/.pi/agent/themes/`) picks them up without any extension needing to register the path itself.
+One residual, harmless side effect: extensions with overlapping `THEME_MAP` assignments (`minimal.ts` and `theme-cycler.ts` both map to `synthwave`) produce a small theme-collision notice when stacked together — Pi resolves it correctly (keeps one, skips the duplicate copy), it's just startup noise, not a functional issue.
 
 Run `/prime` in Claude Code inside this repo for a full onboarding guide to Pi's capabilities and this config's current state.
 
 ## Security
 
-- `auth.json`, `agent/*-memory`, `sessions/`, and `.env` are gitignored — never commit real credentials.
-- `auth.json` should only ever contain OAuth tokens (from `/login`) or `$ENV_VAR` references — no literal API keys belong in this repo.
+- `auth.json`, `models.json`, and `sessions/` live only at `~/.pi/agent/` — outside this repo entirely, nothing to gitignore here.
+- `.env` is gitignored — never commit real credentials.
+- `auth.json` should only ever contain OAuth tokens (from `/login`) or `$ENV_VAR` references — no literal API keys belong anywhere in this setup.

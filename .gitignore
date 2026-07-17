@@ -11,24 +11,10 @@ node_modules/
 .pnpm-store/
 .npm/
 
-# Pi secrets
-base/agent/auth.json
-base/agent/*-memory
+# Pi secrets (live at ~/.pi/agent/, outside this repo — nothing to ignore here)
 *.key
 *.token
 *.db
-
-# Pi runtime data
-base/agent/projects-memory/
-base/agent/sessions/
-base/agent/extensions/*/node_modules/
-base/agent/npm/
-base/agent/git/
-
-# Pi backup files
-base/agent/models.*.bak
-base/agent/settings.*.bak
-base/agent/sessions.*.bak
 
 # Environment files
 .env

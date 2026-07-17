@@ -1,0 +1,10 @@
+{
+  "backend-fix": {
+    "extensions": ["damage-control-continue", "minimal"],
+    "theme": "nord"
+  },
+  "safe-explore": {
+    "extensions": ["damage-control", "plan-mode", "minimal"],
+    "theme": "gruvbox"
+  }
+}
