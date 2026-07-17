@@ -15,4 +15,4 @@ export const GLOBAL_AGENTS_MD_PATH = join(homedir(), ".pi", "agent", "AGENTS.md"
 // Pinned release ref this repo publishes itself as a Pi package under. Bumping the
 // released version is a one-line change here, paired with actually cutting a new tag.
 export const PACKAGE_SOURCE_BASE = "git:github.com/waynegibson/oh-my-pi";
-export const PACKAGE_REF = "v0.1.0-alpha.1";
+export const PACKAGE_REF = "v0.1.0-alpha.2";

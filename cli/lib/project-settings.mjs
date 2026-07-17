@@ -53,7 +53,7 @@ export function upsertPackageEntry(settings, entry) {
  * `excludeSkills`/adHoc exclusions as the opt-out — an explicit include list (skills/
  * adHocSkills) still wins when given, same as before.
  *
- * @param {string} source - e.g. "git:github.com/waynegibson/oh-my-pi@v0.1.0-alpha.1"
+ * @param {string} source - e.g. "git:github.com/waynegibson/oh-my-pi@v0.1.0-alpha.2"
  * @param {string[]} extensionRelPaths - repo-relative paths, already resolved
  * @param {{skills?: string[], excludeSkills?: string[], theme?: string}} [jobDef] - the job's own fields, if any
  * @param {{adHocSkills?: string[], adHocExcludeSkills?: string[], adHocTheme?: string}} [adHoc]

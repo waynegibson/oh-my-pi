@@ -16,7 +16,7 @@ There are two different audiences, with two different installation paths:
 If you just want a project to use extensions/skills from oh-my-pi — the common case for a team member working in some other repo — you don't need to clone or install anything here. Pi resolves this repo directly as a git package:
 
 ```bash
-pi install "git:github.com/waynegibson/oh-my-pi@v0.1.0-alpha.1"
+pi install "git:github.com/waynegibson/oh-my-pi@v0.1.0-alpha.2"
 ```
 
 or, more precisely scoped (only load specific extensions/skills, not everything), commit a `.pi/settings.json` package entry in that project — see [Referencing this repo as a package](#referencing-this-repo-as-a-package). Someone with an `ohmypi` checkout can generate this for you with `ohmypi toggle <job> --scope project`.
@@ -205,7 +205,7 @@ Because `settings.json`'s `extensions` array holds absolute, machine-specific pa
 {
   "packages": [
     {
-      "source": "git:github.com/waynegibson/oh-my-pi@v0.1.0-alpha.1",
+      "source": "git:github.com/waynegibson/oh-my-pi@v0.1.0-alpha.2",
       "extensions": ["extensions/damage-control-continue.ts", "extensions/minimal.ts"],
       "themes": ["themes/nord.json"]
     }
@@ -248,7 +248,7 @@ Agent Skills-standard: `skills/<category>/<name>/SKILL.md` with `name`/`descript
 This repo needs no `pi` manifest — its `extensions/`, `skills/`, `themes/` directories already match Pi's convention-directory auto-discovery, so it's a valid package as-is. Anyone (including `ohmypi toggle --scope project`) can reference it directly:
 
 ```
-git:github.com/waynegibson/oh-my-pi@v0.1.0-alpha.1
+git:github.com/waynegibson/oh-my-pi@v0.1.0-alpha.2
 ```
 
 ## Themes
