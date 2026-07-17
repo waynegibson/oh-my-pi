@@ -1,14 +1,10 @@
 {
   "lastChangelogVersion": "0.80.6",
-  "theme": "nord",
-  "defaultProvider": "olmx",
-  "defaultModel": "mlx-community/Qwen3-Coder-Next-4bit",
+  "theme": "dark",
+  "defaultProvider": "omlx",
+  "defaultModel": "Qwen3.6-35B-A3B-6bit",
   "defaultThinkingLevel": "medium",
-  "prompts": [
-    "../.claude/commands"
-  ],
-  "extensions": [
-    "/Volumes/SSDSCX_DATA/workspace/applications/oh-my-pi/extensions/minimal.ts",
-    "/Volumes/SSDSCX_DATA/workspace/applications/oh-my-pi/extensions/plan-mode"
-  ]
+  "prompts": ["../.claude/commands"],
+  "extensions": [],
+  "enabledModels": ["omlx/Qwen3.6-35B-A3B-6bit"]
 }
