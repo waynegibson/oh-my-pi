@@ -38,6 +38,17 @@ function validateJobDef(jobName, def, sourceLabel) {
       throw new Error(`${sourceLabel}: job "${jobName}" references unknown skill "${skill}"`);
     }
   }
+  for (const skill of def.excludeSkills) {
+    if (!skillNames.has(skill)) {
+      throw new Error(`${sourceLabel}: job "${jobName}" references unknown skill "${skill}" in excludeSkills`);
+    }
+  }
+  if (def.skills.length > 0 && def.excludeSkills.length > 0) {
+    throw new Error(
+      `${sourceLabel}: job "${jobName}" sets both "skills" (only these load) and "excludeSkills" ` +
+        `(everything except these loads) — contradictory, pick one`,
+    );
+  }
   if (def.contextFile && !existsSync(join(REPO_ROOT, def.contextFile))) {
     throw new Error(`${sourceLabel}: job "${jobName}" references missing contextFile "${def.contextFile}"`);
   }

@@ -42,6 +42,12 @@ export function registerToggle(program) {
     .option("-t, --theme <name>", "theme name — project scope only, overrides the job's theme")
     .option("-s, --skill <name>", "skill name to add — project scope only, additive to a job's skills (repeatable)", collect, [])
     .option(
+      "-x, --exclude-skill <name>",
+      "skill name to exclude — project scope only, skills default to all-loaded, this opts one out (repeatable)",
+      collect,
+      [],
+    )
+    .option(
       "--save-as <name>",
       "save the resolved extensions/theme/skills as a new project-local preset (.pi/ohmypi.jobs.json), in addition to applying it",
     )
@@ -49,9 +55,9 @@ export function registerToggle(program) {
       if (opts.scope !== "global" && opts.scope !== "project") {
         throw new Error(`invalid --scope "${opts.scope}" — must be "global" or "project"`);
       }
-      if (opts.scope === "global" && (opts.theme !== undefined || opts.skill.length > 0)) {
+      if (opts.scope === "global" && (opts.theme !== undefined || opts.skill.length > 0 || opts.excludeSkill.length > 0)) {
         throw new Error(
-          "--theme/--skill only apply to --scope project — global scope manages extensions only (settings.json's extensions array)",
+          "--theme/--skill/--exclude-skill only apply to --scope project — global scope manages extensions only (settings.json's extensions array)",
         );
       }
 
@@ -93,22 +99,34 @@ export function registerToggle(program) {
         );
       }
 
-      const paths = names.map((name) => {
+      const resolved = names.map((name) => {
         const c = candidatesByName.get(name);
         if (!c) {
           throw new Error(`unknown extension "${name}" — valid: ${candidates.map((c) => c.name).join(", ")}`);
         }
-        return c.path;
+        return c;
       });
 
+      const adHoc = { adHocSkills: opts.skill, adHocExcludeSkills: opts.excludeSkill, adHocTheme: opts.theme };
+
       if (opts.saveAs) {
-        saveAsProjectPreset(cwd, opts.saveAs, names, jobDef, { adHocSkills: opts.skill, adHocTheme: opts.theme });
+        saveAsProjectPreset(cwd, opts.saveAs, names, jobDef, adHoc);
       }
 
       if (opts.scope === "project") {
-        applyProjectSelection(cwd, paths, jobDef, { adHocSkills: opts.skill, adHocTheme: opts.theme });
+        // Project-scope package filters match Pi's resolved entry file, not a folder-style
+        // extension's directory — entryPath, never path (see discover.mjs).
+        applyProjectSelection(
+          cwd,
+          resolved.map((c) => c.entryPath),
+          jobDef,
+          adHoc,
+        );
       } else {
-        applySelection(candidates, paths);
+        applySelection(
+          candidates,
+          resolved.map((c) => c.path),
+        );
       }
     });
 }
@@ -213,6 +231,9 @@ function saveAsProjectPreset(cwd, name, extensionNames, jobDef, adHoc = {}) {
 
   const skills = [...new Set([...(jobDef?.skills ?? []), ...(adHoc.adHocSkills ?? [])])];
   if (skills.length > 0) newJobDef.skills = skills;
+
+  const excludeSkills = [...new Set([...(jobDef?.excludeSkills ?? []), ...(adHoc.adHocExcludeSkills ?? [])])];
+  if (excludeSkills.length > 0) newJobDef.excludeSkills = excludeSkills;
 
   if (jobDef?.contextFile) newJobDef.contextFile = jobDef.contextFile;
 

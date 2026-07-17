@@ -65,21 +65,25 @@ describe("upsertPackageEntry", () => {
 
 describe("buildProjectPackageEntry", () => {
   const toRepoRelative = (p) => p.replace("/repo/", "");
-  const skillCandidates = [{ name: "using-ohmypi", path: "/repo/skills/using-ohmypi" }];
+  const skillCandidates = [
+    { name: "using-ohmypi", path: "/repo/skills/productivity/using-ohmypi" },
+    { name: "other-skill", path: "/repo/skills/productivity/other-skill" },
+  ];
   const themeCandidates = [
     { name: "nord", path: "/repo/themes/nord.json" },
     { name: "dracula", path: "/repo/themes/dracula.json" },
   ];
 
-  it("emits explicit [] for skills/themes when nothing was selected", () => {
+  it("emits explicit [] for themes but omits skills entirely when nothing was selected — skills default to all", () => {
     const entry = buildProjectPackageEntry("git:x@v1", ["extensions/a.ts"], {}, {}, skillCandidates, themeCandidates, toRepoRelative);
-    expect(entry).toEqual({ source: "git:x@v1", extensions: ["extensions/a.ts"], skills: [], themes: [] });
+    expect(entry).toEqual({ source: "git:x@v1", extensions: ["extensions/a.ts"], themes: [] });
+    expect(entry.skills).toBeUndefined();
   });
 
   it("uses the job's own skills/theme as the base", () => {
     const jobDef = { skills: ["using-ohmypi"], theme: "nord" };
     const entry = buildProjectPackageEntry("git:x@v1", [], jobDef, {}, skillCandidates, themeCandidates, toRepoRelative);
-    expect(entry.skills).toEqual(["skills/using-ohmypi"]);
+    expect(entry.skills).toEqual(["skills/productivity/using-ohmypi"]);
     expect(entry.themes).toEqual(["themes/nord.json"]);
   });
 
@@ -94,7 +98,7 @@ describe("buildProjectPackageEntry", () => {
       themeCandidates,
       toRepoRelative,
     );
-    expect(entry.skills).toEqual(["skills/using-ohmypi"]);
+    expect(entry.skills).toEqual(["skills/productivity/using-ohmypi"]);
   });
 
   it("an ad hoc theme overrides the job's own theme", () => {
@@ -121,5 +125,66 @@ describe("buildProjectPackageEntry", () => {
     expect(() =>
       buildProjectPackageEntry("git:x@v1", [], {}, { adHocTheme: "nope" }, skillCandidates, themeCandidates, toRepoRelative),
     ).toThrow(/unknown theme "nope"/);
+  });
+
+  it("writes a wildcard-plus-exclusions pattern for the job's own excludeSkills", () => {
+    const jobDef = { excludeSkills: ["other-skill"] };
+    const entry = buildProjectPackageEntry("git:x@v1", [], jobDef, {}, skillCandidates, themeCandidates, toRepoRelative);
+    expect(entry.skills).toEqual(["skills/**", "!skills/productivity/other-skill"]);
+  });
+
+  it("layers an ad hoc exclusion on top of the job's excludeSkills, deduped", () => {
+    const jobDef = { excludeSkills: ["other-skill"] };
+    const entry = buildProjectPackageEntry(
+      "git:x@v1",
+      [],
+      jobDef,
+      { adHocExcludeSkills: ["other-skill"] },
+      skillCandidates,
+      themeCandidates,
+      toRepoRelative,
+    );
+    expect(entry.skills).toEqual(["skills/**", "!skills/productivity/other-skill"]);
+  });
+
+  it("an explicit include list wins over excludeSkills if somehow both are non-empty", () => {
+    const entry = buildProjectPackageEntry(
+      "git:x@v1",
+      [],
+      {},
+      { adHocSkills: ["using-ohmypi"] },
+      skillCandidates,
+      themeCandidates,
+      toRepoRelative,
+    );
+    expect(entry.skills).toEqual(["skills/productivity/using-ohmypi"]);
+  });
+
+  it("throws when a job's skills and excludeSkills are both non-empty", () => {
+    const jobDef = { skills: ["using-ohmypi"], excludeSkills: ["other-skill"] };
+    expect(() => buildProjectPackageEntry("git:x@v1", [], jobDef, {}, skillCandidates, themeCandidates, toRepoRelative)).toThrow(
+      /contradictory/,
+    );
+  });
+
+  it("throws when ad hoc -s and -x are both given", () => {
+    expect(() =>
+      buildProjectPackageEntry(
+        "git:x@v1",
+        [],
+        {},
+        { adHocSkills: ["using-ohmypi"], adHocExcludeSkills: ["other-skill"] },
+        skillCandidates,
+        themeCandidates,
+        toRepoRelative,
+      ),
+    ).toThrow(/contradictory/);
+  });
+
+  it("throws on an unknown excludeSkills name", () => {
+    const jobDef = { excludeSkills: ["nope"] };
+    expect(() => buildProjectPackageEntry("git:x@v1", [], jobDef, {}, skillCandidates, themeCandidates, toRepoRelative)).toThrow(
+      /unknown skill "nope"/,
+    );
   });
 });

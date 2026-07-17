@@ -31,8 +31,13 @@ describe("discoverThemes", () => {
 });
 
 describe("discoverSkills", () => {
-  it("finds <name>/SKILL.md directories", () => {
+  it("finds <category>/<name>/SKILL.md directories at any nesting depth", () => {
     const names = discoverSkills().map((c) => c.name);
     expect(names).toContain("using-ohmypi");
+  });
+
+  it("uses the skill's own leaf directory name, not its category path", () => {
+    const skill = discoverSkills().find((c) => c.name === "using-ohmypi");
+    expect(skill.path.endsWith("productivity/using-ohmypi")).toBe(true);
   });
 });

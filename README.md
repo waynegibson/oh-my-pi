@@ -85,8 +85,11 @@ No build step exists or is needed: `cli/` is plain ESM `.mjs`, run directly via 
 │       ├── tool-policy.ts           # Bash safety tokenizer (ported from narumiruna/pi-extensions)
 │       ├── question-tool.ts         # Owned plan_mode_question tool (ported from narumiruna/pi-extensions)
 │       └── README.md
-├── skills/                         # Agent Skills-standard: <name>/SKILL.md, discovered by ohmypi
-│   └── using-ohmypi/SKILL.md        # How to use ohmypi/jobs.json — dogfoods this repo's own tooling
+├── skills/                         # Agent Skills-standard: <category>/<name>/SKILL.md, any
+│   │                                depth — discovered by ohmypi, mirrors Pi's own recursion
+│   └── productivity/
+│       ├── README.md                # Category index — one per category folder
+│       └── using-ohmypi/SKILL.md    # How to use ohmypi/jobs.json — dogfoods this repo's own tooling
 ├── themes/                         # Theme JSON files (11 custom themes) — canonical source, reached
 │                                     # only via per-extension registration or `ohmypi run --theme`
 └── cli/                            # ohmypi — job-scoped extension/theme launcher (see below)
@@ -157,7 +160,7 @@ Current extensions (`extensions/`):
 }
 ```
 
-`ohmypi` validates this file at load time: every extension/theme/skill name must exist, no job may select two extensions from the same mutually-exclusive group, and a `"mode": "autonomous"` job may not select `damage-control` (only `damage-control-continue` — no human is there to answer a hard block). `mode` defaults to `"interactive"` if omitted. `skills`/`contextFile` are optional.
+`ohmypi` validates this file at load time: every extension/theme/skill name must exist, no job may select two extensions from the same mutually-exclusive group, and a `"mode": "autonomous"` job may not select `damage-control` (only `damage-control-continue` — no human is there to answer a hard block). `mode` defaults to `"interactive"` if omitted. `skills`/`excludeSkills`/`contextFile` are optional — `skills` is an allow-list (only these load), `excludeSkills` is a deny-list against an otherwise-load-all default (everything except these); setting both on one job is rejected as contradictory.
 
 **Project-local custom presets.** A team can define their own named presets without touching this repo's `jobs.json` at all — drop a `.pi/ohmypi.jobs.json` in the *consuming* project, same shape as `jobs.json`. Every command that loads job presets (`run`, `toggle`, `list`, `context`) merges it in automatically just by being invoked from inside that project directory — a project-local preset overrides a base one with the same name, otherwise it's additive. Names still validate against oh-my-pi's own catalog (extensions/themes/skills) — a project-local preset composes what oh-my-pi ships, it doesn't invent new resource types. A community package installed via plain `pi install` (from [pi.dev/packages](https://pi.dev/packages)) layers in completely independently of any of this — `jobs.json` only manages oh-my-pi's own resources, everything else is just another entry in Pi's own `packages` array.
 
@@ -185,6 +188,7 @@ ohmypi toggle backend-fix                              # job-driven: syncs the j
 ohmypi toggle backend-fix --scope project              # writes a git-package reference into .pi/settings.json
 ohmypi toggle backend-fix --scope project -t dracula   # project scope, override the job's theme
 ohmypi toggle backend-fix --scope project -s some-skill # project scope, add an extra skill on top of the job's own
+ohmypi toggle backend-fix --scope project -x some-skill # project scope, exclude a skill (skills default to all-loaded)
 ohmypi toggle backend-fix --scope project -t dracula --save-as my-preset # apply, and also save the result as a new preset
 ```
 
@@ -203,18 +207,22 @@ Because `settings.json`'s `extensions` array holds absolute, machine-specific pa
     {
       "source": "git:github.com/waynegibson/oh-my-pi@v0.1.0-alpha.1",
       "extensions": ["extensions/damage-control-continue.ts", "extensions/minimal.ts"],
-      "skills": ["skills/using-ohmypi"],
       "themes": ["themes/nord.json"]
     }
   ]
 }
 ```
 
-`extensions`/`skills`/`themes` are always written as explicit arrays (`[]` when nothing was selected for that type), never omitted — Pi's package-filter semantics treat an *omitted* key as "load all of that type," so an omitted key here would silently pull in every theme/skill in the package instead of none. `skills`/`themes` only exist in project scope — global-scope `toggle` manages `extensions` only. A job's own `skills`/`theme` are the base selection; `-t`/`-s` (project scope only — global scope rejects them, since global has no theme/skill concept) layer ad hoc additions on top: `-t` overrides the job's theme, `-s` (repeatable) adds extra skills alongside the job's own, deduped. Both work with or without a job argument. Re-running with a different selection replaces the existing entry (matched by source, ignoring `@ref`) rather than duplicating it.
+Pi's package-filter semantics treat an *omitted* key as "load all of that type" and `[]` as "load none" — `extensions`/`themes` are always written as an explicit array (`[]` when nothing was selected), since extensions carry real runtime cost and only one theme applies at a time, so "load everything by default" is the wrong default for either. `skills` inverts this deliberately: Pi keeps only a skill's name+description in context until it's actually invoked (near-zero cost unloaded), so the `skills` key is **omitted** — load all — unless narrowed. Two ways to narrow it, mutually exclusive:
+
+- **`-s <name>`** (repeatable) / a job's own `skills` field — an explicit allow-list, only these load. Written as a plain array: `"skills": ["skills/productivity/using-ohmypi"]`.
+- **`-x <name>`** (repeatable) / a job's own `excludeSkills` field — opt out of specific skills, everything else still loads. Written as a wildcard plus exclusions: `"skills": ["skills/**", "!skills/productivity/using-ohmypi"]`.
+
+Setting both on the same job (or combining `-s`/`-x` in one invocation) is rejected — they're contradictory intents. `skills`/`themes` only exist in project scope — global-scope `toggle` manages `extensions` only. A job's own `skills`/`excludeSkills`/`theme` are the base selection; `-t`/`-s`/`-x` (project scope only — global scope rejects them, since global has no theme/skill concept) layer ad hoc additions on top: `-t` overrides the job's theme, `-s`/`-x` add to the job's include/exclude list, deduped. All work with or without a job argument. Re-running with a different selection replaces the existing entry (matched by source, ignoring `@ref`) rather than duplicating it.
 
 **Project-scoped extensions require project trust**, and Pi's non-interactive modes (`-p`, `--mode json`, `--mode rpc`) **silently skip untrusted project resources with no error** — `ohmypi toggle --scope project` prints a reminder after writing. Either run `pi` once interactively in that project and accept `/trust`, set `"defaultProjectTrust": "always"`, or pass `--approve`/`-a` for a single run. `ohmypi` never writes trust decisions on your behalf.
 
-**`--save-as <name>`** captures whatever extensions/theme/skills were just resolved (job base + any `-t`/`-s`/`--set` layered on top) as a new named preset in `.pi/ohmypi.jobs.json` — additive to applying the selection, not a replacement for it. This is the fast path for "I hand-assembled a combination via flags and want to reuse it" without editing a jobs file by hand. The new preset is validated against oh-my-pi's own catalog before being written; an invalid preset throws and the file on disk is left untouched.
+**`--save-as <name>`** captures whatever extensions/theme/skills were just resolved (job base + any `-t`/`-s`/`-x`/`--set` layered on top) as a new named preset in `.pi/ohmypi.jobs.json` — additive to applying the selection, not a replacement for it. This is the fast path for "I hand-assembled a combination via flags and want to reuse it" without editing a jobs file by hand. The new preset is validated against oh-my-pi's own catalog before being written; an invalid preset throws and the file on disk is left untouched.
 
 ### `ohmypi context <job> [--global] [--remove]`
 
@@ -233,7 +241,7 @@ Lists available job/extension/skill/theme names — the discovery step to call b
 
 ### Skills (`skills/`)
 
-Agent Skills-standard: `skills/<name>/SKILL.md` with `name`/`description` frontmatter. Unlike extensions, skills are near-zero cost to have around — Pi only keeps name+description in context until a skill is actually loaded — so there's no equivalent to `ohmypi toggle`'s global always-on list for skills; they travel with a job through project scope (above).
+Agent Skills-standard: `skills/<category>/<name>/SKILL.md` with `name`/`description` frontmatter, grouped into category folders (`skills/productivity/`, etc.), each with its own `README.md` index — mirrors [mattpocock/skills](https://github.com/mattpocock/skills)'s layout. `discoverSkills()` recurses to any depth, matching Pi's own convention-directory discovery, so nesting is purely organizational — a skill's identity is its own directory name, not its category path. Unlike extensions, skills are near-zero cost to have around — Pi only keeps name+description in context until a skill is actually loaded — so there's no equivalent to `ohmypi toggle`'s global always-on list for skills; they travel with a job through project scope (above).
 
 ### Referencing this repo as a package
 

@@ -1,6 +1,6 @@
 ---
 name: using-ohmypi
-description: Understand and correctly use the ohmypi CLI and jobs.json in this repo — when to add a job, how mode/extensions/skills/theme/contextFile fields work, and how run/toggle/list/context differ. Use when asked to add, edit, or debug a job definition, or to explain what ohmypi run/toggle/list/context do.
+description: Understand and correctly use the ohmypi CLI and jobs.json in this repo — when to add a job, how mode/extensions/skills/excludeSkills/theme/contextFile fields work, and how run/toggle/list/context differ. Use when asked to add, edit, or debug a job definition, or to explain what ohmypi run/toggle/list/context do.
 ---
 
 # Using ohmypi
@@ -17,13 +17,13 @@ snippets, defined in `cli/`. Two independent axes:
     concept at this scope.
   - Project scope (`--scope project`, run from inside the target project): writes a `git:`
     package reference into that project's `.pi/settings.json`, portable across
-    machines/teammates. A job's own `skills`/`theme` are the base selection; `-t <name>`
-    overrides the theme, `-s <name>` (repeatable) adds extra skills on top — both work with
-    or without a job argument. Requires project trust — `pi` silently skips untrusted
-    project resources in non-interactive modes (`-p`, `--mode json`, `--mode rpc`).
-    `--save-as <name>` captures whatever was just resolved (job base + any ad hoc flags)
-    as a new preset in `.pi/ohmypi.jobs.json`, in addition to applying it — validated
-    before writing, so a bad preset never lands on disk.
+    machines/teammates. A job's own `skills`/`excludeSkills`/`theme` are the base selection;
+    `-t <name>` overrides the theme, `-s <name>` (repeatable) adds skills on top, `-x <name>`
+    (repeatable) excludes skills — all work with or without a job argument. Requires project
+    trust — `pi` silently skips untrusted project resources in non-interactive modes (`-p`,
+    `--mode json`, `--mode rpc`). `--save-as <name>` captures whatever was just resolved (job
+    base + any ad hoc flags) as a new preset in `.pi/ohmypi.jobs.json`, in addition to
+    applying it — validated before writing, so a bad preset never lands on disk.
 
 ## jobs.json fields
 
@@ -32,8 +32,14 @@ snippets, defined in `cli/`. Two independent axes:
 - `mode: "interactive" | "autonomous"` (default `"interactive"`) — `"autonomous"` jobs
   cannot select `damage-control` (hard block, hangs with no human to answer); use
   `damage-control-continue` for unattended/orchestrator-spawned jobs.
-- `skills?: string[]` — names from `skills/<name>/SKILL.md`. Only travel through project
-  scope (`toggle <job> --scope project`) — global-scope skill toggling isn't built.
+- `skills?: string[]` — names from `skills/<category>/<name>/SKILL.md`. Skills default to
+  **all-loaded** in a project-scope package entry (Pi keeps only name+description of an
+  unloaded skill in context — near-zero cost); `skills` is an allow-list that narrows this
+  to only the named ones. Only travel through project scope (`toggle <job> --scope
+  project`) — global-scope skill toggling isn't built.
+- `excludeSkills?: string[]` — the opposite narrowing: everything loads except these.
+  Setting both `skills` and `excludeSkills` on one job is a hard error — contradictory
+  intents (only these vs. everything except these).
 - `contextFile?: string` — repo-relative path to a markdown snippet. Print it with
   `ohmypi context <job>`, apply it to `~/.pi/agent/AGENTS.md` with `--global`, or strip it
   back out again with `--remove`.

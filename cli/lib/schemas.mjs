@@ -4,7 +4,11 @@ export const JobDefSchema = z.object({
   extensions: z.array(z.string().min(1)).default([]),
   theme: z.string().min(1).optional(),
   mode: z.enum(["interactive", "autonomous"]).default("interactive"),
+  // `skills` is an allow-list (only these load). `excludeSkills` is a deny-list against an
+  // otherwise-load-all default (everything except these). Setting both is contradictory —
+  // rejected in jobs.mjs's semantic validation pass, not here (needs the skill catalog).
   skills: z.array(z.string().min(1)).default([]),
+  excludeSkills: z.array(z.string().min(1)).default([]),
   contextFile: z.string().min(1).optional(),
 });
 

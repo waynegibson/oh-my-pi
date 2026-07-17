@@ -5,7 +5,7 @@
 Personal config for [Pi](https://pi.dev) (`@earendil-works/pi-coding-agent`): extensions,
 themes, skills, job presets, and the `ohmypi` CLI that wires them together on demand.
 `~/.pi/agent/` is live, per-machine state — not symlinked from this repo. See `README.md`
-for the full picture; `skills/using-ohmypi/SKILL.md` for the `ohmypi` command reference.
+for the full picture; `skills/productivity/using-ohmypi/SKILL.md` for the `ohmypi` command reference.
 
 ## Conventions
 
@@ -29,7 +29,8 @@ for the full picture; `skills/using-ohmypi/SKILL.md` for the `ohmypi` command re
 
 - `extensions/` — flat `<name>.ts` or folder `<name>/index.ts`.
 - `themes/` — flat `<name>.json`.
-- `skills/` — `<name>/SKILL.md` (Agent Skills standard frontmatter: `name`, `description`).
+- `skills/` — `<category>/<name>/SKILL.md`, any nesting depth (Agent Skills standard
+  frontmatter: `name`, `description`). Each category folder has its own `README.md` index.
 - `context/` — markdown snippets referenced by a job's `contextFile`.
 - `jobs.json` — named presets (`extensions`, `theme`, `mode`, `skills`, `contextFile`).
 - `cli/` — the `ohmypi` CLI (`run`, `toggle`, `list`, `context` subcommands).

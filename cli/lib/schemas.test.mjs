@@ -4,7 +4,7 @@ import { JobDefSchema, JobsFileSchema, RunJsonInputSchema, ToggleJsonInputSchema
 describe("JobDefSchema", () => {
   it("applies defaults for a minimal job", () => {
     const parsed = JobDefSchema.parse({});
-    expect(parsed).toEqual({ extensions: [], mode: "interactive", skills: [] });
+    expect(parsed).toEqual({ extensions: [], mode: "interactive", skills: [], excludeSkills: [] });
   });
 
   it("accepts a fully-specified job", () => {

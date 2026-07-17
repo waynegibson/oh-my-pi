@@ -80,6 +80,21 @@ describe("loadJobs", () => {
     const p = writeJobs({ "ok-job": { mode: "autonomous", extensions: ["damage-control-continue"] } });
     expect(() => loadJobs(p)).not.toThrow();
   });
+
+  it("rejects an unknown skill name in excludeSkills", () => {
+    const p = writeJobs({ "bad-job": { excludeSkills: ["does-not-exist"] } });
+    expect(() => loadJobs(p)).toThrow(/unknown skill "does-not-exist" in excludeSkills/);
+  });
+
+  it("rejects a job setting both skills and excludeSkills", () => {
+    const p = writeJobs({ "bad-job": { skills: ["using-ohmypi"], excludeSkills: ["using-ohmypi"] } });
+    expect(() => loadJobs(p)).toThrow(/sets both "skills".*"excludeSkills".*contradictory/);
+  });
+
+  it("allows a job with only excludeSkills set", () => {
+    const p = writeJobs({ "ok-job": { excludeSkills: ["using-ohmypi"] } });
+    expect(() => loadJobs(p)).not.toThrow();
+  });
 });
 
 describe("loadJobs — project-local presets (.pi/ohmypi.jobs.json)", () => {
@@ -121,7 +136,7 @@ describe("writeProjectJob", () => {
     const path = writeProjectJob(dir, "my-preset", { extensions: ["minimal"], mode: "interactive" });
     expect(path).toBe(projectJobsPath(dir));
     const written = JSON.parse(readFileSync(path, "utf8"));
-    expect(written).toEqual({ "my-preset": { extensions: ["minimal"], mode: "interactive", skills: [] } });
+    expect(written).toEqual({ "my-preset": { extensions: ["minimal"], mode: "interactive", skills: [], excludeSkills: [] } });
   });
 
   it("adds alongside existing project-local entries without touching them", () => {
@@ -136,7 +151,7 @@ describe("writeProjectJob", () => {
     writeProjectJobs({ "my-preset": { extensions: ["theme-cycler"] } });
     writeProjectJob(dir, "my-preset", { extensions: ["minimal"], mode: "interactive" });
     const written = JSON.parse(readFileSync(projectJobsPath(dir), "utf8"));
-    expect(written["my-preset"]).toEqual({ extensions: ["minimal"], mode: "interactive", skills: [] });
+    expect(written["my-preset"]).toEqual({ extensions: ["minimal"], mode: "interactive", skills: [], excludeSkills: [] });
   });
 
   it("throws on an invalid preset and leaves the file on disk untouched", () => {
