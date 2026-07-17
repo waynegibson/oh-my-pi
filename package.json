@@ -1,5 +1,5 @@
 {
-  "name": "oh-my-pi",
+  "name": "@spacecomx/oh-my-pi",
   "private": true,
   "type": "module",
   "description": "Personal configuration for a minimal, extensible terminal pi coding agent",
