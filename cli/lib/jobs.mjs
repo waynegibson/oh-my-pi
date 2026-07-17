@@ -12,9 +12,11 @@ import { findConflict } from "./conflicts.mjs";
  * select the hard-block damage-control variant (nothing would be there to answer it).
  * Throws a plain Error naming the job and the specific bad reference; callers let it
  * bubble to the top-level try/catch (stderr + exit 1) rather than partially loading.
+ *
+ * @param {string} [jobsPath] - defaults to the repo's real jobs.json; overridable for tests.
  */
-export function loadJobs() {
-  const raw = JSON.parse(readFileSync(JOBS_PATH, "utf8"));
+export function loadJobs(jobsPath = JOBS_PATH) {
+  const raw = JSON.parse(readFileSync(jobsPath, "utf8"));
   const parsed = JobsFileSchema.parse(raw);
 
   const extNames = new Set(discoverExtensions().map((c) => c.name));

@@ -9,18 +9,22 @@
   "bin": {
     "ohmypi": "./cli/index.mjs"
   },
+  "scripts": {
+    "test": "vitest run"
+  },
   "dependencies": {
-    "yaml": "^2.9.0",
     "@inquirer/prompts": "^8.5.2",
+    "chalk": "^5.3.0",
     "commander": "^12.1.0",
-    "zod": "^3.23.8",
-    "chalk": "^5.3.0"
+    "yaml": "^2.9.0",
+    "zod": "^3.23.8"
   },
   "devDependencies": {
     "@earendil-works/pi-agent-core": "^0.80.6",
     "@earendil-works/pi-ai": "^0.80.6",
     "@earendil-works/pi-coding-agent": "^0.80.6",
     "@earendil-works/pi-tui": "^0.80.6",
-    "@types/node": "^22.0.0"
+    "@types/node": "^22.0.0",
+    "vitest": "^4.1.10"
   }
 }

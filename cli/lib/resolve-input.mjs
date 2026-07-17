@@ -22,9 +22,11 @@ function readStdinIfPiped() {
  * @param {string} opts.envVarName
  * @param {() => Promise<*>} opts.interactive
  * @param {boolean} [opts.stdinIsTTY]
+ * @param {() => Promise<string>} [opts.stdinReader] - overridable for tests, avoids touching real stdin
  */
 export async function resolveInput(opts) {
   const stdinIsTTY = opts.stdinIsTTY ?? Boolean(process.stdin.isTTY);
+  const stdinReader = opts.stdinReader ?? readStdinIfPiped;
 
   if (opts.flagsValue !== undefined) {
     return { source: "flags", value: opts.flagsValue };
@@ -36,7 +38,7 @@ export async function resolveInput(opts) {
   }
 
   if (!stdinIsTTY) {
-    const text = await readStdinIfPiped();
+    const text = await stdinReader();
     if (text.trim()) {
       return { source: "stdin-json", value: opts.jsonSchema.parse(JSON.parse(text)) };
     }

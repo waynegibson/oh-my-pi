@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import { checkbox, select } from "@inquirer/prompts";
 import chalk from "chalk";
-import { discoverExtensions, discoverSkills } from "../lib/discover.mjs";
+import { discoverExtensions, discoverSkills, discoverThemes } from "../lib/discover.mjs";
 import { readSettings, writeSettings } from "../lib/settings.mjs";
 import {
   projectSettingsPath,
@@ -184,6 +184,11 @@ function applyProjectSelection(cwd, candidates, selectedPaths, jobDef) {
   const entry = {
     source: `${PACKAGE_SOURCE_BASE}@${PACKAGE_REF}`,
     extensions: selectedPaths.map((p) => toRepoRelative(p)),
+    // Explicit [] rather than omitted — Pi's package-filter semantics treat an omitted
+    // key as "load all of that type," so leaving these out when nothing was selected
+    // would silently pull in every theme/skill in the package, not none.
+    skills: [],
+    themes: [],
   };
 
   if (jobDef !== undefined) {
@@ -196,6 +201,15 @@ function applyProjectSelection(cwd, candidates, selectedPaths, jobDef) {
       }
       return toRepoRelative(c.path);
     });
+
+    if (jobDef.theme) {
+      const themeCandidates = discoverThemes();
+      const theme = themeCandidates.find((c) => c.name === jobDef.theme);
+      if (!theme) {
+        throw new Error(`unknown theme "${jobDef.theme}" — valid: ${themeCandidates.map((c) => c.name).join(", ")}`);
+      }
+      entry.themes = [toRepoRelative(theme.path)];
+    }
   }
 
   const settings = readProjectSettings(cwd);
