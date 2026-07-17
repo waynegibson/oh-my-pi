@@ -1,8 +1,46 @@
 {
   "name": "@spacecomx/oh-my-pi",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Personal configuration for a minimal, extensible terminal pi coding agent",
+  "description": "Job-scoped extension/theme/skill launcher and config framework for the Pi coding agent (@earendil-works/pi-coding-agent)",
+  "keywords": [
+    "pi",
+    "pi-package",
+    "pi-coding-agent",
+    "cli",
+    "extensions",
+    "agent"
+  ],
+  "homepage": "https://github.com/waynegibson/oh-my-pi#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/waynegibson/oh-my-pi.git"
+  },
+  "bugs": {
+    "url": "https://github.com/waynegibson/oh-my-pi/issues"
+  },
+  "author": "Wayne Gibson",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "cli",
+    "extensions",
+    "lib",
+    "skills",
+    "themes",
+    "context",
+    "jobs.json",
+    "damage-control-rules.yaml",
+    "AGENTS.md",
+    "README.md",
+    "LICENSE.md"
+  ],
   "workspaces": [
     "extensions/*"
   ],

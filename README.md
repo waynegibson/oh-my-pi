@@ -1,15 +1,37 @@
 # oh-my-pi
 
-Personal configuration for [Pi](https://pi.dev) — a minimal, extensible terminal coding agent (`@earendil-works/pi-coding-agent`). `~/.pi/agent/` is **live, per-machine state** (`settings.json`, `models.json`, `auth.json`, `sessions/`) — it is not symlinked from this repo. This repo holds only the shareable, versioned source material: extensions, themes, skills, job presets, and the `ohmypi` CLI that wires them together on demand. It's also, as-is, a valid Pi package — see "Referencing this repo as a package" below.
+[`@spacecomx/oh-my-pi`](https://github.com/waynegibson/oh-my-pi) — a job-scoped extension, theme, and skill launcher for [Pi](https://pi.dev) (`@earendil-works/pi-coding-agent`), plus the versioned source material (extensions, themes, skills, job presets) it wires together on demand. `~/.pi/agent/` is **live, per-machine state** (`settings.json`, `models.json`, `auth.json`, `sessions/`) — it is not symlinked from this repo; this repo holds only what's shareable and versioned. It's also, as-is, a valid Pi package — see [Referencing this repo as a package](#referencing-this-repo-as-a-package).
 
-## Setup
+## Requirements
 
-1. Install dependencies and link the CLI globally:
+- Node.js `>=20` (declared in `package.json`'s `engines`)
+- [Pi](https://pi.dev) (`@earendil-works/pi-coding-agent`) installed and on `PATH`
+
+## Installation
+
+There are two different audiences, with two different installation paths:
+
+### Using extensions/skills from this repo in a project (no local checkout needed)
+
+If you just want a project to use extensions/skills from oh-my-pi — the common case for a team member working in some other repo — you don't need to clone or install anything here. Pi resolves this repo directly as a git package:
+
+```bash
+pi install "git:github.com/waynegibson/oh-my-pi@v0.1.0"
+```
+
+or, more precisely scoped (only load specific extensions/skills, not everything), commit a `.pi/settings.json` package entry in that project — see [Referencing this repo as a package](#referencing-this-repo-as-a-package). Someone with an `ohmypi` checkout can generate this for you with `ohmypi toggle <job> --scope project`.
+
+### Operating `ohmypi` itself (this repo)
+
+1. Clone this repo, install dependencies, and link the CLI globally:
    ```bash
+   git clone git@github.com:waynegibson/oh-my-pi.git
+   cd oh-my-pi
    npm install
    npm link
    ```
-2. Copy the env template and fill in your keys:
+   Once published to npm, this collapses to `npm install -g @spacecomx/oh-my-pi`.
+2. Copy the env template and fill in your provider keys:
    ```bash
    cp .env.sample .env
    ```
@@ -18,7 +40,19 @@ Personal configuration for [Pi](https://pi.dev) — a minimal, extensible termin
    source .env && pi
    ```
 
-`~/.pi/agent/settings.json`, `models.json`, `auth.json`, `sessions/`, and `AGENTS.md` are not part of this repo — they're local, per-machine state you manage directly (or via `ohmypi toggle`/`ohmypi context --global`, see below). `damage-control.ts`/`damage-control-continue.ts` read their global rules file directly from this repo (`damage-control-rules.yaml`, resolved relative to the extension itself) — no symlink needed.
+`~/.pi/agent/settings.json`, `models.json`, `auth.json`, `sessions/`, and the live `AGENTS.md` are not part of this repo — they're local, per-machine state you manage directly (or via `ohmypi toggle` / `ohmypi context --global`, see below). `damage-control.ts`/`damage-control-continue.ts` read their global rules file directly from this repo (`damage-control-rules.yaml`, resolved relative to the extension itself) — no symlink needed.
+
+## Development
+
+```bash
+npm install       # install dependencies
+npm test          # run the vitest suite (cli/lib/*.test.mjs)
+npm link          # make the local checkout's `ohmypi` resolve globally
+```
+
+Tests cover the pure/testable `cli/lib/` modules — schema validation, `jobs.json` semantic checks (unknown names, conflicts, autonomous-mode constraints), the non-interactive input precedence resolver, package-entry merge logic, and resource discovery. Commander wiring, `@inquirer/prompts` interactive flows, and the `pi` subprocess launch in `run.mjs` are exercised by manual end-to-end verification instead (documented in commit history), not unit tests — they're thin glue over already-tested logic, and a spawned interactive TTY session isn't a good unit-test target.
+
+No build step exists or is needed: `cli/` is plain ESM `.mjs`, run directly via `node`; `extensions/*.ts` run through Pi's own `jiti` loader at launch time, not `tsc`.
 
 ## Structure
 
@@ -26,7 +60,9 @@ Personal configuration for [Pi](https://pi.dev) — a minimal, extensible termin
 .
 ├── .env.sample                     # Template for provider API keys — copy to .env (gitignored)
 ├── .claude/commands/prime.md       # Claude Code slash command: onboard onto Pi's capabilities
-├── package.json                    # commander/zod/chalk/@inquirer/prompts/yaml deps; bin: ohmypi
+├── package.json                    # name/version/engines/files for npm; commander/zod/chalk/
+│                                    # @inquirer/prompts/yaml deps; bin: ohmypi; vitest devDep
+├── LICENSE.md                      # MIT
 ├── AGENTS.md                       # This repo's own conventions, auto-loaded by Pi at startup
 ├── CLAUDE.md                       # Symlink to AGENTS.md — same content, read by Claude Code
 ├── jobs.json                       # Named presets: extensions, theme, mode, skills, contextFile
@@ -56,6 +92,7 @@ Personal configuration for [Pi](https://pi.dev) — a minimal, extensible termin
     ├── index.mjs                    # commander entry, bin target
     ├── lib/                          # discovery, settings I/O, jobs.json loading+validation,
     │                                  # conflict checking, the shared non-interactive input resolver
+    │                                  # — each *.mjs here has a colocated *.test.mjs
     └── commands/                     # run.mjs, toggle.mjs, list.mjs, context.mjs
 ```
 
@@ -160,13 +197,14 @@ Because `settings.json`'s `extensions` array holds absolute, machine-specific pa
     {
       "source": "git:github.com/waynegibson/oh-my-pi@v0.1.0",
       "extensions": ["extensions/damage-control-continue.ts", "extensions/minimal.ts"],
-      "skills": ["skills/using-ohmypi"]
+      "skills": ["skills/using-ohmypi"],
+      "themes": ["themes/nord.json"]
     }
   ]
 }
 ```
 
-`skills` only travels through project scope, driven by a job argument (`ohmypi toggle <job> --scope project`) — global-scope skill toggling isn't built. Re-running with a different selection replaces the existing entry (matched by source, ignoring `@ref`) rather than duplicating it.
+`extensions`/`skills`/`themes` are always written as explicit arrays (`[]` when nothing was selected for that type), never omitted — Pi's package-filter semantics treat an *omitted* key as "load all of that type," so an omitted key here would silently pull in every theme/skill in the package instead of none. `skills`/`themes` only travel through project scope, driven by a job argument (`ohmypi toggle <job> --scope project`) — global-scope skill/theme toggling isn't built. Re-running with a different selection replaces the existing entry (matched by source, ignoring `@ref`) rather than duplicating it.
 
 **Project-scoped extensions require project trust**, and Pi's non-interactive modes (`-p`, `--mode json`, `--mode rpc`) **silently skip untrusted project resources with no error** — `ohmypi toggle --scope project` prints a reminder after writing. Either run `pi` once interactively in that project and accept `/trust`, set `"defaultProjectTrust": "always"`, or pass `--approve`/`-a` for a single run. `ohmypi` never writes trust decisions on your behalf.
 
@@ -210,8 +248,21 @@ One residual, harmless side effect: extensions with overlapping `THEME_MAP` assi
 
 Run `/prime` in Claude Code inside this repo for a full onboarding guide to Pi's capabilities and this config's current state.
 
+## Publishing (npm)
+
+Not yet published — `package.json` has `"private": true` as a deliberate guard against an accidental `npm publish`. When ready:
+
+1. Flip `"private": true` to `false` (or remove the field) in `package.json`.
+2. `npm publish --access public` (the scope's `publishConfig.access` is already set to `"public"`, but pass the flag explicitly the first time).
+3. `package.json`'s `files` array controls what actually ships in the tarball — `cli/`, `extensions/`, `lib/`, `skills/`, `themes/`, `context/`, `jobs.json`, `damage-control-rules.yaml`, `AGENTS.md`, `README.md`, `LICENSE.md`. Dev-only material (`.claude/`, tests, `.env.sample`) is excluded automatically.
+4. Bump `version` and cut a matching git tag (`vX.Y.Z`) together — the git-package reference in this README and in any project's `.pi/settings.json` should track the same version.
+
 ## Security
 
 - `auth.json`, `models.json`, `sessions/`, and the live `AGENTS.md` live only at `~/.pi/agent/` — outside this repo entirely, nothing to gitignore here.
 - `.env` is gitignored — never commit real credentials.
 - `auth.json` should only ever contain OAuth tokens (from `/login`) or `$ENV_VAR` references — no literal API keys belong anywhere in this setup.
+
+## License
+
+[MIT](LICENSE.md) © Wayne Gibson
