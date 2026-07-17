@@ -25,6 +25,10 @@ registerContext(program);
 try {
   await program.parseAsync(argv);
 } catch (err) {
+  if (err.name === "ExitPromptError") {
+    console.log(chalk.yellow("Cancelled — no changes made."));
+    process.exit(0);
+  }
   console.error(chalk.red(`ohmypi: ${err.message}`));
   process.exit(1);
 }

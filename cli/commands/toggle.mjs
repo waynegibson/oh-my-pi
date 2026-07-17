@@ -135,7 +135,9 @@ async function interactiveToggle(candidates, candidatesByName, currentPaths) {
   let selectedPaths;
   while (true) {
     const rawSelected = await checkbox({
-      message: "Select extensions to always load (space to toggle, a to select all, i to invert, enter to confirm):",
+      message:
+        "Select extensions to always load (space to toggle, a to select all, i to invert, enter to confirm — " +
+        "confirming with none checked clears the list; ctrl+c to cancel without changes):",
       choices: candidates.map((c) => ({
         name: c.name,
         value: c.path,

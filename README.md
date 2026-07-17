@@ -229,7 +229,7 @@ ohmypi context backend-fix --remove     # strip that job's block back out of ~/.
 
 ### `ohmypi list [--json]`
 
-Lists available job/extension/theme/skill names — the discovery step to call before `run`/`toggle`. `--json` emits `{"jobs":[...],"extensions":[...],"themes":[...],"skills":[...]}` for scripts/orchestrators.
+Lists available job/extension/skill/theme names — the discovery step to call before `run`/`toggle`. `--json` emits `{"jobs":[...],"extensions":[...],"skills":[...],"themes":[...]}` for scripts/orchestrators.
 
 ### Skills (`skills/`)
 

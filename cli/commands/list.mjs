@@ -14,7 +14,7 @@ export function registerList(program) {
       const skills = discoverSkills().map((c) => c.name);
 
       if (opts.json) {
-        console.log(JSON.stringify({ jobs, extensions, themes, skills }));
+        console.log(JSON.stringify({ jobs, extensions, skills, themes }));
         return;
       }
 
@@ -22,9 +22,9 @@ export function registerList(program) {
       for (const j of jobs) console.log(`  ${j}`);
       console.log(chalk.bold("Extensions:"));
       for (const e of extensions) console.log(`  ${e}`);
-      console.log(chalk.bold("Themes:"));
-      for (const t of themes) console.log(`  ${t}`);
       console.log(chalk.bold("Skills:"));
       for (const s of skills) console.log(`  ${s}`);
+      console.log(chalk.bold("Themes:"));
+      for (const t of themes) console.log(`  ${t}`);
     });
 }
