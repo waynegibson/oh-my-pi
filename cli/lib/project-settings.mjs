@@ -48,7 +48,7 @@ export function upsertPackageEntry(settings, entry) {
  * semantics treat an omitted key as "load all of that type," so an omitted key here
  * would silently pull in every theme/skill in the package instead of none.
  *
- * @param {string} source - e.g. "git:github.com/waynegibson/oh-my-pi@v0.1.0"
+ * @param {string} source - e.g. "git:github.com/waynegibson/oh-my-pi@v0.1.0-alpha.1"
  * @param {string[]} extensionRelPaths - repo-relative paths, already resolved
  * @param {{skills?: string[], theme?: string}} [jobDef] - the job's own fields, if any
  * @param {{adHocSkills?: string[], adHocTheme?: string}} [adHoc]
