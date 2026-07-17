@@ -10,12 +10,19 @@ export function registerContext(program) {
     .description("Print a job's contextFile, or (--global) apply it to ~/.pi/agent/AGENTS.md")
     .argument("<job>", "job name from jobs.json")
     .option("--global", "idempotently write into ~/.pi/agent/AGENTS.md instead of printing to stdout")
+    .option("--remove", "remove this job's block from ~/.pi/agent/AGENTS.md instead of writing it")
     .action((job, opts) => {
       const jobs = loadJobs();
       const jobDef = jobs[job];
       if (!jobDef) {
         throw new Error(`unknown job "${job}" — run \`ohmypi list\` to see available jobs`);
       }
+
+      if (opts.remove) {
+        removeGlobal(job);
+        return;
+      }
+
       if (!jobDef.contextFile) {
         throw new Error(`job "${job}" has no contextFile`);
       }
@@ -29,6 +36,28 @@ export function registerContext(program) {
 
       console.log(content);
     });
+}
+
+function removeGlobal(job) {
+  const startMarker = `<!-- ohmypi:${job}:start -->`;
+  const endMarker = `<!-- ohmypi:${job}:end -->`;
+
+  if (!existsSync(GLOBAL_AGENTS_MD_PATH)) {
+    console.log(chalk.yellow(`${GLOBAL_AGENTS_MD_PATH} doesn't exist — nothing to remove.`));
+    return;
+  }
+
+  const existing = readFileSync(GLOBAL_AGENTS_MD_PATH, "utf8");
+  const blockRegex = new RegExp(`\\n*${escapeRegExp(startMarker)}[\\s\\S]*?${escapeRegExp(endMarker)}\\n*`);
+
+  if (!blockRegex.test(existing)) {
+    console.log(chalk.yellow(`No "${job}" block found in ${GLOBAL_AGENTS_MD_PATH} — nothing to remove.`));
+    return;
+  }
+
+  const updated = existing.replace(blockRegex, "\n");
+  writeFileSync(GLOBAL_AGENTS_MD_PATH, updated.trimStart());
+  console.log(chalk.green(`Removed ${job}'s context block from ${GLOBAL_AGENTS_MD_PATH}`));
 }
 
 function applyGlobal(job, content) {

@@ -185,6 +185,7 @@ ohmypi toggle backend-fix                              # job-driven: syncs the j
 ohmypi toggle backend-fix --scope project              # writes a git-package reference into .pi/settings.json
 ohmypi toggle backend-fix --scope project -t dracula   # project scope, override the job's theme
 ohmypi toggle backend-fix --scope project -s some-skill # project scope, add an extra skill on top of the job's own
+ohmypi toggle backend-fix --scope project -t dracula --save-as my-preset # apply, and also save the result as a new preset
 ```
 
 **Global scope** (default) writes **absolute** paths into the real `~/.pi/agent/settings.json`'s `extensions` array — the documented "additional paths via settings.json" mechanism (docs/extensions.md). This is the confirmed-working persistent mechanism; two alternatives were tried and reverted after failing an end-to-end check:
@@ -213,19 +214,22 @@ Because `settings.json`'s `extensions` array holds absolute, machine-specific pa
 
 **Project-scoped extensions require project trust**, and Pi's non-interactive modes (`-p`, `--mode json`, `--mode rpc`) **silently skip untrusted project resources with no error** — `ohmypi toggle --scope project` prints a reminder after writing. Either run `pi` once interactively in that project and accept `/trust`, set `"defaultProjectTrust": "always"`, or pass `--approve`/`-a` for a single run. `ohmypi` never writes trust decisions on your behalf.
 
-### `ohmypi context <job> [--global]`
+**`--save-as <name>`** captures whatever extensions/theme/skills were just resolved (job base + any `-t`/`-s`/`--set` layered on top) as a new named preset in `.pi/ohmypi.jobs.json` — additive to applying the selection, not a replacement for it. This is the fast path for "I hand-assembled a combination via flags and want to reuse it" without editing a jobs file by hand. The new preset is validated against oh-my-pi's own catalog before being written; an invalid preset throws and the file on disk is left untouched.
+
+### `ohmypi context <job> [--global] [--remove]`
 
 ```bash
 ohmypi context backend-fix              # print the job's contextFile to stdout
 ohmypi context backend-fix >> AGENTS.md # paste it into a project's own AGENTS.md yourself
 ohmypi context backend-fix --global     # idempotently write it into ~/.pi/agent/AGENTS.md
+ohmypi context backend-fix --remove     # strip that job's block back out of ~/.pi/agent/AGENTS.md
 ```
 
-`ohmypi` never writes into a *project's* `AGENTS.md`/`CLAUDE.md` automatically — those are almost always hand-authored by the project owner, and `ohmypi` has no way to know what's already there. The bare command always just prints to stdout; `--global` is the one place `ohmypi` manages a file directly, because `~/.pi/agent/AGENTS.md` is otherwise ohmypi's own space. Each job's block is wrapped in `<!-- ohmypi:<job>:start/end -->` markers so re-applying replaces only that job's section — everything else in the file is preserved.
+`ohmypi` never writes into a *project's* `AGENTS.md`/`CLAUDE.md` automatically — those are almost always hand-authored by the project owner, and `ohmypi` has no way to know what's already there. The bare command always just prints to stdout; `--global` is the one place `ohmypi` manages a file directly, because `~/.pi/agent/AGENTS.md` is otherwise ohmypi's own space. Each job's block is wrapped in `<!-- ohmypi:<job>:start/end -->` markers so re-applying replaces only that job's section — everything else in the file is preserved. `--remove` is the inverse: it deletes that job's block (no-op with a message if it isn't there), leaving the rest of the file untouched.
 
 ### `ohmypi list [--json]`
 
-Lists available job/extension/theme names — the discovery step to call before `run`/`toggle`. `--json` emits `{"jobs":[...],"extensions":[...],"themes":[...]}` for scripts/orchestrators.
+Lists available job/extension/theme/skill names — the discovery step to call before `run`/`toggle`. `--json` emits `{"jobs":[...],"extensions":[...],"themes":[...],"skills":[...]}` for scripts/orchestrators.
 
 ### Skills (`skills/`)
 

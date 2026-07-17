@@ -15,7 +15,7 @@ import { PACKAGE_REF, PACKAGE_SOURCE_BASE, REPO_ROOT } from "../lib/paths.mjs";
 import { findConflict, MUTUALLY_EXCLUSIVE_GROUPS } from "../lib/conflicts.mjs";
 import { resolveInput } from "../lib/resolve-input.mjs";
 import { ToggleJsonInputSchema } from "../lib/schemas.mjs";
-import { loadJobs } from "../lib/jobs.mjs";
+import { loadJobs, writeProjectJob } from "../lib/jobs.mjs";
 
 const BACK_TO_SELECTION = Symbol("back-to-selection");
 const NEITHER = Symbol("neither");
@@ -41,6 +41,10 @@ export function registerToggle(program) {
     .option("--scope <scope>", "global (~/.pi/agent/settings.json, default) or project (.pi/settings.json in cwd)", "global")
     .option("-t, --theme <name>", "theme name — project scope only, overrides the job's theme")
     .option("-s, --skill <name>", "skill name to add — project scope only, additive to a job's skills (repeatable)", collect, [])
+    .option(
+      "--save-as <name>",
+      "save the resolved extensions/theme/skills as a new project-local preset (.pi/ohmypi.jobs.json), in addition to applying it",
+    )
     .action(async (job, opts) => {
       if (opts.scope !== "global" && opts.scope !== "project") {
         throw new Error(`invalid --scope "${opts.scope}" — must be "global" or "project"`);
@@ -96,6 +100,10 @@ export function registerToggle(program) {
         }
         return c.path;
       });
+
+      if (opts.saveAs) {
+        saveAsProjectPreset(cwd, opts.saveAs, names, jobDef, { adHocSkills: opts.skill, adHocTheme: opts.theme });
+      }
 
       if (opts.scope === "project") {
         applyProjectSelection(cwd, paths, jobDef, { adHocSkills: opts.skill, adHocTheme: opts.theme });
@@ -190,6 +198,24 @@ function applySelection(candidates, selectedPaths) {
   if (added.length > 0) console.log(chalk.green(`Added to global extensions: ${added.map((c) => c.name).join(", ")}`));
   if (removed.length > 0) console.log(chalk.red(`Removed from global extensions: ${removed.map((c) => c.name).join(", ")}`));
   if (added.length === 0 && removed.length === 0) console.log("No changes.");
+}
+
+function saveAsProjectPreset(cwd, name, extensionNames, jobDef, adHoc = {}) {
+  const newJobDef = {
+    extensions: extensionNames,
+    mode: jobDef?.mode ?? "interactive",
+  };
+
+  const theme = adHoc.adHocTheme ?? jobDef?.theme;
+  if (theme) newJobDef.theme = theme;
+
+  const skills = [...new Set([...(jobDef?.skills ?? []), ...(adHoc.adHocSkills ?? [])])];
+  if (skills.length > 0) newJobDef.skills = skills;
+
+  if (jobDef?.contextFile) newJobDef.contextFile = jobDef.contextFile;
+
+  const path = writeProjectJob(cwd, name, newJobDef);
+  console.log(chalk.green(`Saved preset "${name}" to ${path}`));
 }
 
 function applyProjectSelection(cwd, selectedPaths, jobDef, adHoc = {}) {

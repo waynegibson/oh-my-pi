@@ -1,8 +1,8 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { loadJobs, projectJobsPath } from "./jobs.mjs";
+import { loadJobs, projectJobsPath, writeProjectJob } from "./jobs.mjs";
 
 let dir;
 
@@ -113,5 +113,38 @@ describe("loadJobs — project-local presets (.pi/ohmypi.jobs.json)", () => {
     const p = writeJobs({});
     writeProjectJobs({ "bad-job": { mode: "autonomous", extensions: ["damage-control"] } });
     expect(() => loadJobs(p, dir)).toThrow(/project jobs.*is mode "autonomous" but selects "damage-control"/);
+  });
+});
+
+describe("writeProjectJob", () => {
+  it("creates .pi/ohmypi.jobs.json with the new entry when none exists yet", () => {
+    const path = writeProjectJob(dir, "my-preset", { extensions: ["minimal"], mode: "interactive" });
+    expect(path).toBe(projectJobsPath(dir));
+    const written = JSON.parse(readFileSync(path, "utf8"));
+    expect(written).toEqual({ "my-preset": { extensions: ["minimal"], mode: "interactive", skills: [] } });
+  });
+
+  it("adds alongside existing project-local entries without touching them", () => {
+    writeProjectJobs({ "existing-job": { extensions: ["theme-cycler"] } });
+    writeProjectJob(dir, "new-job", { extensions: ["minimal"], mode: "interactive" });
+    const written = JSON.parse(readFileSync(projectJobsPath(dir), "utf8"));
+    expect(Object.keys(written).sort()).toEqual(["existing-job", "new-job"]);
+    expect(written["existing-job"]).toEqual({ extensions: ["theme-cycler"] });
+  });
+
+  it("overwrites an existing entry with the same name", () => {
+    writeProjectJobs({ "my-preset": { extensions: ["theme-cycler"] } });
+    writeProjectJob(dir, "my-preset", { extensions: ["minimal"], mode: "interactive" });
+    const written = JSON.parse(readFileSync(projectJobsPath(dir), "utf8"));
+    expect(written["my-preset"]).toEqual({ extensions: ["minimal"], mode: "interactive", skills: [] });
+  });
+
+  it("throws on an invalid preset and leaves the file on disk untouched", () => {
+    writeProjectJobs({ "existing-job": { extensions: ["theme-cycler"] } });
+    expect(() => writeProjectJob(dir, "bad-preset", { extensions: ["not-a-real-extension"], mode: "interactive" })).toThrow(
+      /unknown extension "not-a-real-extension"/,
+    );
+    const written = JSON.parse(readFileSync(projectJobsPath(dir), "utf8"));
+    expect(written).toEqual({ "existing-job": { extensions: ["theme-cycler"] } });
   });
 });

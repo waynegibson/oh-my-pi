@@ -21,6 +21,9 @@ snippets, defined in `cli/`. Two independent axes:
     overrides the theme, `-s <name>` (repeatable) adds extra skills on top — both work with
     or without a job argument. Requires project trust — `pi` silently skips untrusted
     project resources in non-interactive modes (`-p`, `--mode json`, `--mode rpc`).
+    `--save-as <name>` captures whatever was just resolved (job base + any ad hoc flags)
+    as a new preset in `.pi/ohmypi.jobs.json`, in addition to applying it — validated
+    before writing, so a bad preset never lands on disk.
 
 ## jobs.json fields
 
@@ -32,11 +35,12 @@ snippets, defined in `cli/`. Two independent axes:
 - `skills?: string[]` — names from `skills/<name>/SKILL.md`. Only travel through project
   scope (`toggle <job> --scope project`) — global-scope skill toggling isn't built.
 - `contextFile?: string` — repo-relative path to a markdown snippet. Print it with
-  `ohmypi context <job>`, or apply it to `~/.pi/agent/AGENTS.md` with `--global`.
+  `ohmypi context <job>`, apply it to `~/.pi/agent/AGENTS.md` with `--global`, or strip it
+  back out again with `--remove`.
 
 All names are validated when `jobs.json` loads — `ohmypi list` shows everything currently
-valid to reference. `damage-control` and `damage-control-continue` are mutually exclusive
-(same hooked events) — selecting both in one job is a hard error.
+valid to reference, including skills. `damage-control` and `damage-control-continue` are
+mutually exclusive (same hooked events) — selecting both in one job is a hard error.
 
 ## Adding a job
 

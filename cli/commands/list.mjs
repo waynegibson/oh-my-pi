@@ -1,19 +1,20 @@
 import chalk from "chalk";
-import { discoverExtensions, discoverThemes } from "../lib/discover.mjs";
+import { discoverExtensions, discoverSkills, discoverThemes } from "../lib/discover.mjs";
 import { loadJobs } from "../lib/jobs.mjs";
 
 export function registerList(program) {
   program
     .command("list")
-    .description("List available jobs, extensions, and themes")
+    .description("List available jobs, extensions, themes, and skills")
     .option("--json", "output as JSON")
     .action((opts) => {
       const jobs = Object.keys(loadJobs());
       const extensions = discoverExtensions().map((c) => c.name);
       const themes = discoverThemes().map((c) => c.name);
+      const skills = discoverSkills().map((c) => c.name);
 
       if (opts.json) {
-        console.log(JSON.stringify({ jobs, extensions, themes }));
+        console.log(JSON.stringify({ jobs, extensions, themes, skills }));
         return;
       }
 
@@ -23,5 +24,7 @@ export function registerList(program) {
       for (const e of extensions) console.log(`  ${e}`);
       console.log(chalk.bold("Themes:"));
       for (const t of themes) console.log(`  ${t}`);
+      console.log(chalk.bold("Skills:"));
+      for (const s of skills) console.log(`  ${s}`);
     });
 }
