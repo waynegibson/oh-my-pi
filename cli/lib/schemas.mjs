@@ -3,6 +3,9 @@ import { z } from "zod";
 export const JobDefSchema = z.object({
   extensions: z.array(z.string().min(1)).default([]),
   theme: z.string().min(1).optional(),
+  mode: z.enum(["interactive", "autonomous"]).default("interactive"),
+  skills: z.array(z.string().min(1)).default([]),
+  contextFile: z.string().min(1).optional(),
 });
 
 export const JobsFileSchema = z.record(z.string().min(1), JobDefSchema);

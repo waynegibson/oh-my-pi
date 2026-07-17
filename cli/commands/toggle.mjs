@@ -1,10 +1,20 @@
+import { join } from "node:path";
 import { checkbox, select } from "@inquirer/prompts";
 import chalk from "chalk";
-import { discoverExtensions } from "../lib/discover.mjs";
+import { discoverExtensions, discoverSkills } from "../lib/discover.mjs";
 import { readSettings, writeSettings } from "../lib/settings.mjs";
+import {
+  projectSettingsPath,
+  readProjectSettings,
+  upsertPackageEntry,
+  writeProjectSettings,
+} from "../lib/project-settings.mjs";
+import { toRepoRelative } from "../lib/repo-relative.mjs";
+import { PACKAGE_REF, PACKAGE_SOURCE_BASE, REPO_ROOT } from "../lib/paths.mjs";
 import { findConflict, MUTUALLY_EXCLUSIVE_GROUPS } from "../lib/conflicts.mjs";
 import { resolveInput } from "../lib/resolve-input.mjs";
 import { ToggleJsonInputSchema } from "../lib/schemas.mjs";
+import { loadJobs } from "../lib/jobs.mjs";
 
 const BACK_TO_SELECTION = Symbol("back-to-selection");
 const NEITHER = Symbol("neither");
@@ -19,19 +29,43 @@ function splitNames(value) {
 export function registerToggle(program) {
   program
     .command("toggle")
-    .description("Set which extensions always load globally (writes ~/.pi/agent/settings.json)")
+    .description("Set which extensions load persistently — globally or committed to a project")
+    .argument("[job]", "job name from jobs.json — its extensions (and, for --scope project, skills) become the base selection")
     .option("--set <names>", "comma-separated extension names — full replacement list, non-interactive", splitNames)
     .option("--json <json>", 'JSON input: {"set":["ext-a","ext-b"]}')
-    .action(async (opts) => {
+    .option("--scope <scope>", "global (~/.pi/agent/settings.json, default) or project (.pi/settings.json in cwd)", "global")
+    .action(async (job, opts) => {
+      if (opts.scope !== "global" && opts.scope !== "project") {
+        throw new Error(`invalid --scope "${opts.scope}" — must be "global" or "project"`);
+      }
+
       const candidates = discoverExtensions();
       const candidatesByName = new Map(candidates.map((c) => [c.name, c]));
 
+      let jobDef;
+      if (job !== undefined) {
+        const jobs = loadJobs();
+        jobDef = jobs[job];
+        if (!jobDef) {
+          throw new Error(`unknown job "${job}" — run \`ohmypi list\` to see available jobs`);
+        }
+      }
+
+      const flagsValue =
+        job !== undefined || opts.set !== undefined
+          ? [...new Set([...(jobDef?.extensions ?? []), ...(opts.set ?? [])])]
+          : undefined;
+
+      const cwd = process.cwd();
+      const currentPaths =
+        opts.scope === "project" ? currentProjectExtensionPaths(cwd) : currentGlobalExtensionPaths();
+
       const { value } = await resolveInput({
-        flagsValue: opts.set,
+        flagsValue,
         jsonFlag: opts.json,
         jsonSchema: ToggleJsonInputSchema,
         envVarName: "OHMYPI_TOGGLE_SET",
-        interactive: () => interactiveToggle(candidates, candidatesByName),
+        interactive: () => interactiveToggle(candidates, candidatesByName, currentPaths),
       });
 
       const names = Array.isArray(value) ? value : value.set;
@@ -51,20 +85,37 @@ export function registerToggle(program) {
         return c.path;
       });
 
-      applySelection(candidates, paths);
+      if (opts.scope === "project") {
+        applyProjectSelection(cwd, candidates, paths, jobDef);
+      } else {
+        applySelection(candidates, paths);
+      }
     });
 }
 
-async function interactiveToggle(candidates, candidatesByName) {
+function currentGlobalExtensionPaths() {
   const settings = readSettings();
-  const currentExtensions = Array.isArray(settings.extensions) ? settings.extensions : [];
+  return Array.isArray(settings.extensions) ? settings.extensions : [];
+}
+
+function currentProjectExtensionPaths(cwd) {
+  const settings = readProjectSettings(cwd);
+  const packages = Array.isArray(settings.packages) ? settings.packages : [];
+  const entry = packages.find(
+    (p) => typeof p === "object" && p !== null && typeof p.source === "string" && p.source.startsWith(PACKAGE_SOURCE_BASE),
+  );
+  if (!entry || !Array.isArray(entry.extensions)) return [];
+  return entry.extensions.map((rel) => join(REPO_ROOT, rel));
+}
+
+async function interactiveToggle(candidates, candidatesByName, currentPaths) {
   const candidatePaths = new Set(candidates.map((c) => c.path));
-  let checkedByDefault = currentExtensions.filter((p) => candidatePaths.has(p));
+  let checkedByDefault = currentPaths.filter((p) => candidatePaths.has(p));
 
   let selectedPaths;
   while (true) {
     const rawSelected = await checkbox({
-      message: "Select extensions to always load globally (space to toggle, a to select all, i to invert, enter to confirm):",
+      message: "Select extensions to always load (space to toggle, a to select all, i to invert, enter to confirm):",
       choices: candidates.map((c) => ({
         name: c.name,
         value: c.path,
@@ -127,4 +178,38 @@ function applySelection(candidates, selectedPaths) {
   if (added.length > 0) console.log(chalk.green(`Added to global extensions: ${added.map((c) => c.name).join(", ")}`));
   if (removed.length > 0) console.log(chalk.red(`Removed from global extensions: ${removed.map((c) => c.name).join(", ")}`));
   if (added.length === 0 && removed.length === 0) console.log("No changes.");
+}
+
+function applyProjectSelection(cwd, candidates, selectedPaths, jobDef) {
+  const entry = {
+    source: `${PACKAGE_SOURCE_BASE}@${PACKAGE_REF}`,
+    extensions: selectedPaths.map((p) => toRepoRelative(p)),
+  };
+
+  if (jobDef !== undefined) {
+    const skillCandidates = discoverSkills();
+    const skillByName = new Map(skillCandidates.map((c) => [c.name, c]));
+    entry.skills = jobDef.skills.map((name) => {
+      const c = skillByName.get(name);
+      if (!c) {
+        throw new Error(`unknown skill "${name}" — valid: ${skillCandidates.map((c) => c.name).join(", ")}`);
+      }
+      return toRepoRelative(c.path);
+    });
+  }
+
+  const settings = readProjectSettings(cwd);
+  const updated = upsertPackageEntry(settings, entry);
+  writeProjectSettings(cwd, updated);
+
+  console.log(chalk.green(`Wrote project package entry to ${projectSettingsPath(cwd)}`));
+  console.log(
+    chalk.yellow(
+      "Reminder: project-scoped extensions require project trust. Non-interactive `pi` runs " +
+        "(-p / --mode json / --mode rpc) silently skip untrusted project resources with no error. " +
+        "Run `pi` once interactively in this project and accept /trust, or set " +
+        '"defaultProjectTrust": "always" in settings, or pass --approve/-a for a single run. ' +
+        "ohmypi does not write trust decisions on your behalf.",
+    ),
+  );
 }

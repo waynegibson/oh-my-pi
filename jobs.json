@@ -1,10 +1,16 @@
 {
   "backend-fix": {
+    "mode": "autonomous",
     "extensions": ["damage-control-continue", "minimal"],
-    "theme": "nord"
+    "theme": "nord",
+    "skills": ["using-ohmypi"],
+    "contextFile": "context/backend-fix.md"
   },
   "safe-explore": {
+    "mode": "interactive",
     "extensions": ["damage-control", "plan-mode", "minimal"],
-    "theme": "gruvbox"
+    "theme": "gruvbox",
+    "skills": ["using-ohmypi"],
+    "contextFile": "context/safe-explore.md"
   }
 }

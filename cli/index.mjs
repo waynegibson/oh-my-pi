@@ -4,6 +4,7 @@ import chalk from "chalk";
 import { registerRun } from "./commands/run.mjs";
 import { registerToggle } from "./commands/toggle.mjs";
 import { registerList } from "./commands/list.mjs";
+import { registerContext } from "./commands/context.mjs";
 
 // Pass-through args after a literal `--` go straight to `pi` (run command), not to
 // commander's own option parser — split them off before commander ever sees them.
@@ -19,6 +20,7 @@ const program = new Command("ohmypi").description("Job-scoped Pi extension/theme
 registerRun(program, { piArgs });
 registerToggle(program);
 registerList(program);
+registerContext(program);
 
 try {
   await program.parseAsync(argv);

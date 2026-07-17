@@ -18,6 +18,7 @@ import { isToolCallEventType } from "@earendil-works/pi-coding-agent";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import { fileURLToPath } from "node:url";
 import { parse as yamlParse } from "yaml";
 import { applyExtensionDefaults, registerThemeDiscovery } from "../lib/theme-map.ts";
 
@@ -136,9 +137,8 @@ export default function (pi: ExtensionAPI) {
       "damage-control-rules.yaml",
     );
     const globalRulesPath = path.join(
-      os.homedir(),
-      ".pi",
-      "agent",
+      path.dirname(fileURLToPath(import.meta.url)),
+      "..",
       "damage-control-rules.yaml",
     );
     const rulesPath = fs.existsSync(projectRulesPath)
