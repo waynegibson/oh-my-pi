@@ -1,8 +1,8 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { loadJobs } from "./jobs.mjs";
+import { loadJobs, projectJobsPath } from "./jobs.mjs";
 
 let dir;
 
@@ -16,6 +16,13 @@ afterEach(() => {
 
 function writeJobs(obj) {
   const p = join(dir, "jobs.json");
+  writeFileSync(p, JSON.stringify(obj));
+  return p;
+}
+
+function writeProjectJobs(obj) {
+  const p = projectJobsPath(dir);
+  mkdirSync(join(dir, ".pi"), { recursive: true });
   writeFileSync(p, JSON.stringify(obj));
   return p;
 }
@@ -72,5 +79,39 @@ describe("loadJobs", () => {
   it("allows an autonomous job selecting damage-control-continue", () => {
     const p = writeJobs({ "ok-job": { mode: "autonomous", extensions: ["damage-control-continue"] } });
     expect(() => loadJobs(p)).not.toThrow();
+  });
+});
+
+describe("loadJobs — project-local presets (.pi/ohmypi.jobs.json)", () => {
+  it("returns just the base jobs when no project-local file exists", () => {
+    const p = writeJobs({ "base-job": { extensions: ["minimal"] } });
+    const jobs = loadJobs(p, dir);
+    expect(Object.keys(jobs)).toEqual(["base-job"]);
+  });
+
+  it("adds project-local presets alongside base ones", () => {
+    const p = writeJobs({ "base-job": { extensions: ["minimal"] } });
+    writeProjectJobs({ "team-job": { extensions: ["theme-cycler"] } });
+    const jobs = loadJobs(p, dir);
+    expect(Object.keys(jobs).sort()).toEqual(["base-job", "team-job"]);
+  });
+
+  it("a project-local preset overrides a base preset with the same name", () => {
+    const p = writeJobs({ "shared-job": { extensions: ["damage-control-continue"], theme: "nord" } });
+    writeProjectJobs({ "shared-job": { extensions: ["minimal"], theme: "dracula" } });
+    const jobs = loadJobs(p, dir);
+    expect(jobs["shared-job"]).toMatchObject({ extensions: ["minimal"], theme: "dracula" });
+  });
+
+  it("still validates project-local names against oh-my-pi's own catalog", () => {
+    const p = writeJobs({});
+    writeProjectJobs({ "bad-job": { extensions: ["not-a-real-extension"] } });
+    expect(() => loadJobs(p, dir)).toThrow(/project jobs \(\.pi\/ohmypi\.jobs\.json\).*unknown extension "not-a-real-extension"/);
+  });
+
+  it("still applies the autonomous/damage-control constraint to project-local jobs", () => {
+    const p = writeJobs({});
+    writeProjectJobs({ "bad-job": { mode: "autonomous", extensions: ["damage-control"] } });
+    expect(() => loadJobs(p, dir)).toThrow(/project jobs.*is mode "autonomous" but selects "damage-control"/);
   });
 });

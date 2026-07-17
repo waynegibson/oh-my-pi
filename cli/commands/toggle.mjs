@@ -4,6 +4,7 @@ import chalk from "chalk";
 import { discoverExtensions, discoverSkills, discoverThemes } from "../lib/discover.mjs";
 import { readSettings, writeSettings } from "../lib/settings.mjs";
 import {
+  buildProjectPackageEntry,
   projectSettingsPath,
   readProjectSettings,
   upsertPackageEntry,
@@ -26,17 +27,28 @@ function splitNames(value) {
     .filter(Boolean);
 }
 
+function collect(value, previous) {
+  return previous.concat([value]);
+}
+
 export function registerToggle(program) {
   program
     .command("toggle")
     .description("Set which extensions load persistently — globally or committed to a project")
-    .argument("[job]", "job name from jobs.json — its extensions (and, for --scope project, skills) become the base selection")
+    .argument("[job]", "job name from jobs.json — its extensions/skills/theme become the base selection")
     .option("--set <names>", "comma-separated extension names — full replacement list, non-interactive", splitNames)
     .option("--json <json>", 'JSON input: {"set":["ext-a","ext-b"]}')
     .option("--scope <scope>", "global (~/.pi/agent/settings.json, default) or project (.pi/settings.json in cwd)", "global")
+    .option("-t, --theme <name>", "theme name — project scope only, overrides the job's theme")
+    .option("-s, --skill <name>", "skill name to add — project scope only, additive to a job's skills (repeatable)", collect, [])
     .action(async (job, opts) => {
       if (opts.scope !== "global" && opts.scope !== "project") {
         throw new Error(`invalid --scope "${opts.scope}" — must be "global" or "project"`);
+      }
+      if (opts.scope === "global" && (opts.theme !== undefined || opts.skill.length > 0)) {
+        throw new Error(
+          "--theme/--skill only apply to --scope project — global scope manages extensions only (settings.json's extensions array)",
+        );
       }
 
       const candidates = discoverExtensions();
@@ -86,7 +98,7 @@ export function registerToggle(program) {
       });
 
       if (opts.scope === "project") {
-        applyProjectSelection(cwd, candidates, paths, jobDef);
+        applyProjectSelection(cwd, paths, jobDef, { adHocSkills: opts.skill, adHocTheme: opts.theme });
       } else {
         applySelection(candidates, paths);
       }
@@ -180,37 +192,16 @@ function applySelection(candidates, selectedPaths) {
   if (added.length === 0 && removed.length === 0) console.log("No changes.");
 }
 
-function applyProjectSelection(cwd, candidates, selectedPaths, jobDef) {
-  const entry = {
-    source: `${PACKAGE_SOURCE_BASE}@${PACKAGE_REF}`,
-    extensions: selectedPaths.map((p) => toRepoRelative(p)),
-    // Explicit [] rather than omitted — Pi's package-filter semantics treat an omitted
-    // key as "load all of that type," so leaving these out when nothing was selected
-    // would silently pull in every theme/skill in the package, not none.
-    skills: [],
-    themes: [],
-  };
-
-  if (jobDef !== undefined) {
-    const skillCandidates = discoverSkills();
-    const skillByName = new Map(skillCandidates.map((c) => [c.name, c]));
-    entry.skills = jobDef.skills.map((name) => {
-      const c = skillByName.get(name);
-      if (!c) {
-        throw new Error(`unknown skill "${name}" — valid: ${skillCandidates.map((c) => c.name).join(", ")}`);
-      }
-      return toRepoRelative(c.path);
-    });
-
-    if (jobDef.theme) {
-      const themeCandidates = discoverThemes();
-      const theme = themeCandidates.find((c) => c.name === jobDef.theme);
-      if (!theme) {
-        throw new Error(`unknown theme "${jobDef.theme}" — valid: ${themeCandidates.map((c) => c.name).join(", ")}`);
-      }
-      entry.themes = [toRepoRelative(theme.path)];
-    }
-  }
+function applyProjectSelection(cwd, selectedPaths, jobDef, adHoc = {}) {
+  const entry = buildProjectPackageEntry(
+    `${PACKAGE_SOURCE_BASE}@${PACKAGE_REF}`,
+    selectedPaths.map((p) => toRepoRelative(p)),
+    jobDef,
+    adHoc,
+    discoverSkills(),
+    discoverThemes(),
+    toRepoRelative,
+  );
 
   const settings = readProjectSettings(cwd);
   const updated = upsertPackageEntry(settings, entry);

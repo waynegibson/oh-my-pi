@@ -65,7 +65,8 @@ No build step exists or is needed: `cli/` is plain ESM `.mjs`, run directly via 
 ├── LICENSE.md                      # MIT
 ├── AGENTS.md                       # This repo's own conventions, auto-loaded by Pi at startup
 ├── CLAUDE.md                       # Symlink to AGENTS.md — same content, read by Claude Code
-├── jobs.json                       # Named presets: extensions, theme, mode, skills, contextFile
+├── jobs.json                       # Named presets: extensions, theme, mode, skills, contextFile.
+│                                    # A project can add its own via <project>/.pi/ohmypi.jobs.json
 ├── context/                        # Markdown snippets referenced by a job's contextFile
 ├── damage-control-rules.yaml       # Canonical rules source, read directly by damage-control*.ts
 │                                    # via an import.meta.url-relative path (see lib/theme-map.ts)
@@ -158,6 +159,8 @@ Current extensions (`extensions/`):
 
 `ohmypi` validates this file at load time: every extension/theme/skill name must exist, no job may select two extensions from the same mutually-exclusive group, and a `"mode": "autonomous"` job may not select `damage-control` (only `damage-control-continue` — no human is there to answer a hard block). `mode` defaults to `"interactive"` if omitted. `skills`/`contextFile` are optional.
 
+**Project-local custom presets.** A team can define their own named presets without touching this repo's `jobs.json` at all — drop a `.pi/ohmypi.jobs.json` in the *consuming* project, same shape as `jobs.json`. Every command that loads job presets (`run`, `toggle`, `list`, `context`) merges it in automatically just by being invoked from inside that project directory — a project-local preset overrides a base one with the same name, otherwise it's additive. Names still validate against oh-my-pi's own catalog (extensions/themes/skills) — a project-local preset composes what oh-my-pi ships, it doesn't invent new resource types. A community package installed via plain `pi install` (from [pi.dev/packages](https://pi.dev/packages)) layers in completely independently of any of this — `jobs.json` only manages oh-my-pi's own resources, everything else is just another entry in Pi's own `packages` array.
+
 ### `ohmypi run` — ephemeral, one session
 
 ```bash
@@ -175,11 +178,13 @@ Every subcommand resolves input in the same order: **explicit flags → `--json 
 ### `ohmypi toggle` — persistent, global or project
 
 ```bash
-ohmypi toggle                                 # interactive checkbox, global scope
-ohmypi toggle --set minimal,theme-cycler      # non-interactive, full replacement list
-echo '{"set":["minimal"]}' | ohmypi toggle    # same, via piped JSON
-ohmypi toggle backend-fix                     # job-driven: syncs the job's extensions globally
-ohmypi toggle backend-fix --scope project     # writes a git-package reference into .pi/settings.json
+ohmypi toggle                                          # interactive checkbox, global scope
+ohmypi toggle --set minimal,theme-cycler               # non-interactive, full replacement list
+echo '{"set":["minimal"]}' | ohmypi toggle             # same, via piped JSON
+ohmypi toggle backend-fix                              # job-driven: syncs the job's extensions globally
+ohmypi toggle backend-fix --scope project              # writes a git-package reference into .pi/settings.json
+ohmypi toggle backend-fix --scope project -t dracula   # project scope, override the job's theme
+ohmypi toggle backend-fix --scope project -s some-skill # project scope, add an extra skill on top of the job's own
 ```
 
 **Global scope** (default) writes **absolute** paths into the real `~/.pi/agent/settings.json`'s `extensions` array — the documented "additional paths via settings.json" mechanism (docs/extensions.md). This is the confirmed-working persistent mechanism; two alternatives were tried and reverted after failing an end-to-end check:
@@ -204,7 +209,7 @@ Because `settings.json`'s `extensions` array holds absolute, machine-specific pa
 }
 ```
 
-`extensions`/`skills`/`themes` are always written as explicit arrays (`[]` when nothing was selected for that type), never omitted — Pi's package-filter semantics treat an *omitted* key as "load all of that type," so an omitted key here would silently pull in every theme/skill in the package instead of none. `skills`/`themes` only travel through project scope, driven by a job argument (`ohmypi toggle <job> --scope project`) — global-scope skill/theme toggling isn't built. Re-running with a different selection replaces the existing entry (matched by source, ignoring `@ref`) rather than duplicating it.
+`extensions`/`skills`/`themes` are always written as explicit arrays (`[]` when nothing was selected for that type), never omitted — Pi's package-filter semantics treat an *omitted* key as "load all of that type," so an omitted key here would silently pull in every theme/skill in the package instead of none. `skills`/`themes` only exist in project scope — global-scope `toggle` manages `extensions` only. A job's own `skills`/`theme` are the base selection; `-t`/`-s` (project scope only — global scope rejects them, since global has no theme/skill concept) layer ad hoc additions on top: `-t` overrides the job's theme, `-s` (repeatable) adds extra skills alongside the job's own, deduped. Both work with or without a job argument. Re-running with a different selection replaces the existing entry (matched by source, ignoring `@ref`) rather than duplicating it.
 
 **Project-scoped extensions require project trust**, and Pi's non-interactive modes (`-p`, `--mode json`, `--mode rpc`) **silently skip untrusted project resources with no error** — `ohmypi toggle --scope project` prints a reminder after writing. Either run `pi` once interactively in that project and accept `/trust`, set `"defaultProjectTrust": "always"`, or pass `--approve`/`-a` for a single run. `ohmypi` never writes trust decisions on your behalf.
 

@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
+  buildProjectPackageEntry,
   projectSettingsPath,
   readProjectSettings,
   upsertPackageEntry,
@@ -59,5 +60,66 @@ describe("upsertPackageEntry", () => {
     const before = { packages: [{ source: "git:host/repo@v1", extensions: ["a"] }] };
     upsertPackageEntry(before, { source: "git:host/repo@v2", extensions: ["b"] });
     expect(before.packages[0].extensions).toEqual(["a"]);
+  });
+});
+
+describe("buildProjectPackageEntry", () => {
+  const toRepoRelative = (p) => p.replace("/repo/", "");
+  const skillCandidates = [{ name: "using-ohmypi", path: "/repo/skills/using-ohmypi" }];
+  const themeCandidates = [
+    { name: "nord", path: "/repo/themes/nord.json" },
+    { name: "dracula", path: "/repo/themes/dracula.json" },
+  ];
+
+  it("emits explicit [] for skills/themes when nothing was selected", () => {
+    const entry = buildProjectPackageEntry("git:x@v1", ["extensions/a.ts"], {}, {}, skillCandidates, themeCandidates, toRepoRelative);
+    expect(entry).toEqual({ source: "git:x@v1", extensions: ["extensions/a.ts"], skills: [], themes: [] });
+  });
+
+  it("uses the job's own skills/theme as the base", () => {
+    const jobDef = { skills: ["using-ohmypi"], theme: "nord" };
+    const entry = buildProjectPackageEntry("git:x@v1", [], jobDef, {}, skillCandidates, themeCandidates, toRepoRelative);
+    expect(entry.skills).toEqual(["skills/using-ohmypi"]);
+    expect(entry.themes).toEqual(["themes/nord.json"]);
+  });
+
+  it("layers ad hoc skills on top of the job's skills, deduped", () => {
+    const jobDef = { skills: ["using-ohmypi"] };
+    const entry = buildProjectPackageEntry(
+      "git:x@v1",
+      [],
+      jobDef,
+      { adHocSkills: ["using-ohmypi"] },
+      skillCandidates,
+      themeCandidates,
+      toRepoRelative,
+    );
+    expect(entry.skills).toEqual(["skills/using-ohmypi"]);
+  });
+
+  it("an ad hoc theme overrides the job's own theme", () => {
+    const jobDef = { theme: "nord" };
+    const entry = buildProjectPackageEntry(
+      "git:x@v1",
+      [],
+      jobDef,
+      { adHocTheme: "dracula" },
+      skillCandidates,
+      themeCandidates,
+      toRepoRelative,
+    );
+    expect(entry.themes).toEqual(["themes/dracula.json"]);
+  });
+
+  it("throws on an unknown ad hoc skill name", () => {
+    expect(() =>
+      buildProjectPackageEntry("git:x@v1", [], {}, { adHocSkills: ["nope"] }, skillCandidates, themeCandidates, toRepoRelative),
+    ).toThrow(/unknown skill "nope"/);
+  });
+
+  it("throws on an unknown ad hoc theme name", () => {
+    expect(() =>
+      buildProjectPackageEntry("git:x@v1", [], {}, { adHocTheme: "nope" }, skillCandidates, themeCandidates, toRepoRelative),
+    ).toThrow(/unknown theme "nope"/);
   });
 });
