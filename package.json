@@ -1,6 +1,6 @@
 {
   "name": "@spacecomx/oh-my-pi",
-  "version": "0.1.0-alpha.2",
+  "version": "0.1.0-alpha.3",
   "private": true,
   "type": "module",
   "description": "Job-scoped extension/theme/skill launcher and config framework for the Pi coding agent (@earendil-works/pi-coding-agent)",

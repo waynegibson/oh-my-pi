@@ -16,7 +16,7 @@ There are two different audiences, with two different installation paths:
 If you just want a project to use extensions/skills from oh-my-pi — the common case for a team member working in some other repo — you don't need to clone or install anything here. Pi resolves this repo directly as a git package:
 
 ```bash
-pi install "git:github.com/waynegibson/oh-my-pi@v0.1.0-alpha.2"
+pi install "git:github.com/waynegibson/oh-my-pi@v0.1.0-alpha.3"
 ```
 
 or, more precisely scoped (only load specific extensions/skills, not everything), commit a `.pi/settings.json` package entry in that project — see [Referencing this repo as a package](#referencing-this-repo-as-a-package). Someone with an `ohmypi` checkout can generate this for you with `ohmypi toggle <job> --scope project`.
@@ -130,7 +130,7 @@ Only extensions carry real per-request cost — each registers tool schemas that
 Current extensions (`extensions/`):
 
 | File                         | Purpose                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `damage-control.ts`          | Rule-based safety gate for the current project (`.pi/damage-control-rules.yaml`) — hard blocks and tells the agent to stop and ask the user                                                                                                                                                                                                                                                                              |
 | `damage-control-continue.ts` | Same rules, but the block feedback lets the agent keep working past non-destructive violations                                                                                                                                                                                                                                                                                                                           |
 | `theme-cycler.ts`            | F2/Ctrl+Q to cycle themes, `/theme` to pick one, status line + swatch widget                                                                                                                                                                                                                                                                                                                                             |
@@ -162,7 +162,7 @@ Current extensions (`extensions/`):
 
 `ohmypi` validates this file at load time: every extension/theme/skill name must exist, no job may select two extensions from the same mutually-exclusive group, and a `"mode": "autonomous"` job may not select `damage-control` (only `damage-control-continue` — no human is there to answer a hard block). `mode` defaults to `"interactive"` if omitted. `skills`/`excludeSkills`/`contextFile` are optional — `skills` is an allow-list (only these load), `excludeSkills` is a deny-list against an otherwise-load-all default (everything except these); setting both on one job is rejected as contradictory.
 
-**Project-local custom presets.** A team can define their own named presets without touching this repo's `jobs.json` at all — drop a `.pi/ohmypi.jobs.json` in the *consuming* project, same shape as `jobs.json`. Every command that loads job presets (`run`, `toggle`, `list`, `context`) merges it in automatically just by being invoked from inside that project directory — a project-local preset overrides a base one with the same name, otherwise it's additive. Names still validate against oh-my-pi's own catalog (extensions/themes/skills) — a project-local preset composes what oh-my-pi ships, it doesn't invent new resource types. A community package installed via plain `pi install` (from [pi.dev/packages](https://pi.dev/packages)) layers in completely independently of any of this — `jobs.json` only manages oh-my-pi's own resources, everything else is just another entry in Pi's own `packages` array.
+**Project-local custom presets.** A team can define their own named presets without touching this repo's `jobs.json` at all — drop a `.pi/ohmypi.jobs.json` in the _consuming_ project, same shape as `jobs.json`. Every command that loads job presets (`run`, `toggle`, `list`, `context`) merges it in automatically just by being invoked from inside that project directory — a project-local preset overrides a base one with the same name, otherwise it's additive. Names still validate against oh-my-pi's own catalog (extensions/themes/skills) — a project-local preset composes what oh-my-pi ships, it doesn't invent new resource types. A community package installed via plain `pi install` (from [pi.dev/packages](https://pi.dev/packages)) layers in completely independently of any of this — `jobs.json` only manages oh-my-pi's own resources, everything else is just another entry in Pi's own `packages` array.
 
 ### `ohmypi run` — ephemeral, one session
 
@@ -205,15 +205,18 @@ Because `settings.json`'s `extensions` array holds absolute, machine-specific pa
 {
   "packages": [
     {
-      "source": "git:github.com/waynegibson/oh-my-pi@v0.1.0-alpha.2",
-      "extensions": ["extensions/damage-control-continue.ts", "extensions/minimal.ts"],
+      "source": "git:github.com/waynegibson/oh-my-pi@v0.1.0-alpha.3",
+      "extensions": [
+        "extensions/damage-control-continue.ts",
+        "extensions/minimal.ts"
+      ],
       "themes": ["themes/nord.json"]
     }
   ]
 }
 ```
 
-Pi's package-filter semantics treat an *omitted* key as "load all of that type" and `[]` as "load none" — `extensions`/`themes` are always written as an explicit array (`[]` when nothing was selected), since extensions carry real runtime cost and only one theme applies at a time, so "load everything by default" is the wrong default for either. `skills` inverts this deliberately: Pi keeps only a skill's name+description in context until it's actually invoked (near-zero cost unloaded), so the `skills` key is **omitted** — load all — unless narrowed. Two ways to narrow it, mutually exclusive:
+Pi's package-filter semantics treat an _omitted_ key as "load all of that type" and `[]` as "load none" — `extensions`/`themes` are always written as an explicit array (`[]` when nothing was selected), since extensions carry real runtime cost and only one theme applies at a time, so "load everything by default" is the wrong default for either. `skills` inverts this deliberately: Pi keeps only a skill's name+description in context until it's actually invoked (near-zero cost unloaded), so the `skills` key is **omitted** — load all — unless narrowed. Two ways to narrow it, mutually exclusive:
 
 - **`-s <name>`** (repeatable) / a job's own `skills` field — an explicit allow-list, only these load. Written as a plain array: `"skills": ["skills/productivity/using-ohmypi"]`.
 - **`-x <name>`** (repeatable) / a job's own `excludeSkills` field — opt out of specific skills, everything else still loads. Written as a wildcard plus exclusions: `"skills": ["skills/**", "!skills/productivity/using-ohmypi"]`.
@@ -233,7 +236,7 @@ ohmypi context backend-fix --global     # idempotently write it into ~/.pi/agent
 ohmypi context backend-fix --remove     # strip that job's block back out of ~/.pi/agent/AGENTS.md
 ```
 
-`ohmypi` never writes into a *project's* `AGENTS.md`/`CLAUDE.md` automatically — those are almost always hand-authored by the project owner, and `ohmypi` has no way to know what's already there. The bare command always just prints to stdout; `--global` is the one place `ohmypi` manages a file directly, because `~/.pi/agent/AGENTS.md` is otherwise ohmypi's own space. Each job's block is wrapped in `<!-- ohmypi:<job>:start/end -->` markers so re-applying replaces only that job's section — everything else in the file is preserved. `--remove` is the inverse: it deletes that job's block (no-op with a message if it isn't there), leaving the rest of the file untouched.
+`ohmypi` never writes into a _project's_ `AGENTS.md`/`CLAUDE.md` automatically — those are almost always hand-authored by the project owner, and `ohmypi` has no way to know what's already there. The bare command always just prints to stdout; `--global` is the one place `ohmypi` manages a file directly, because `~/.pi/agent/AGENTS.md` is otherwise ohmypi's own space. Each job's block is wrapped in `<!-- ohmypi:<job>:start/end -->` markers so re-applying replaces only that job's section — everything else in the file is preserved. `--remove` is the inverse: it deletes that job's block (no-op with a message if it isn't there), leaving the rest of the file untouched.
 
 ### `ohmypi list [--json]`
 
@@ -248,7 +251,7 @@ Agent Skills-standard: `skills/<category>/<name>/SKILL.md` with `name`/`descript
 This repo needs no `pi` manifest — its `extensions/`, `skills/`, `themes/` directories already match Pi's convention-directory auto-discovery, so it's a valid package as-is. Anyone (including `ohmypi toggle --scope project`) can reference it directly:
 
 ```
-git:github.com/waynegibson/oh-my-pi@v0.1.0-alpha.2
+git:github.com/waynegibson/oh-my-pi@v0.1.0-alpha.3
 ```
 
 ## Themes
