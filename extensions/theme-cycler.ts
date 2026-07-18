@@ -28,7 +28,7 @@ import type {
   ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth } from "@earendil-works/pi-tui";
-import { applyExtensionDefaults, registerThemeDiscovery, themeSourceTag } from "../lib/theme-map.ts";
+import { applyExtensionTitle, registerThemeDiscovery, themeSourceTag } from "../lib/theme-map.ts";
 
 export default function (pi: ExtensionAPI) {
   registerThemeDiscovery(pi, import.meta.url);
@@ -183,12 +183,13 @@ export default function (pi: ExtensionAPI) {
   // --- Session init ---
 
   pi.on("session_start", async (_event, ctx) => {
-    applyExtensionDefaults(import.meta.url, ctx);
+    applyExtensionTitle(ctx);
     if (!ctx.hasUI) return;
-    // applyExtensionDefaults defers its ctx.ui.setTheme() call by 150ms (it must
-    // wait for resources_discover to register our themes — see theme-map.ts), so
-    // reading ctx.ui.theme.name synchronously here would show the pre-switch theme.
-    // Wait slightly longer so the status line reflects the theme actually applied.
+    // theme-cycler no longer force-applies its own theme on boot (see theme-map.ts) —
+    // it just reflects whatever's already active (a job's `theme` field, Pi's own
+    // settings, etc.) and lets F2/Ctrl+Q/`/theme` change it from there. A short delay
+    // still guards against reading ctx.ui.theme.name before Pi's own async startup
+    // theme resolution has settled.
     setTimeout(() => updateStatus(ctx), 200);
   });
 

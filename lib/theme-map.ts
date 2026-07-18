@@ -19,8 +19,15 @@
  *
  * Call registerThemeDiscovery(pi, import.meta.url) once in each extension's factory body
  * (not inside session_start — resources_discover must be registered before it fires on
- * startup), then applyExtensionTheme / applyExtensionDefaults in session_start to
- * actually switch to the mapped theme.
+ * startup). Extensions deliberately do NOT auto-apply their mapped theme on session_start
+ * — only registerThemeDiscovery, which makes it *available* to pick (via /theme, -t, or
+ * ohmypi toggle's theme filter), not *active*. Multiple extensions stacked together (the
+ * common case via ohmypi toggle, which loads via settings.json/packages rather than -e
+ * flags) had no reliable way to agree on a single "primary" one, so each would race to
+ * call ctx.ui.setTheme() on its own 150ms timer — whichever fired last won, and Pi logged
+ * a registration collision for every theme along the way. Theme selection is one
+ * deliberate choice now: a job's own `theme` field (jobs.json), theme-cycler's manual
+ * /theme picker, or Pi's own settings — never an extension's side effect.
  *
  * Available themes (themes/):
  *   catppuccin-mocha · cyberpunk · dracula · everforest · gruvbox
@@ -123,7 +130,7 @@ function extensionName(fileUrl: string): string {
  *
  *   export default function (pi: ExtensionAPI) {
  *     registerThemeDiscovery(pi, import.meta.url);
- *     pi.on("session_start", async (_event, ctx) => { applyExtensionDefaults(import.meta.url, ctx); ... });
+ *     pi.on("session_start", async (_event, ctx) => { applyExtensionTitle(ctx); ... });
  *   }
  */
 export function registerThemeDiscovery(pi: ExtensionAPI, fileUrl: string): void {
@@ -137,41 +144,6 @@ export function registerThemeDiscovery(pi: ExtensionAPI, fileUrl: string): void 
   });
 }
 
-// ── Theme ──────────────────────────────────────────────────────────────────
-
-/**
- * Apply the mapped theme for an extension on session boot.
- *
- * @param fileUrl   Pass `import.meta.url` from the calling extension file.
- * @param ctx       The ExtensionContext from the session_start handler.
- *
- * Deferred 150 ms to let Pi's own startup theme resolution and initial TUI
- * render settle before we override it. Because of this, the call is
- * fire-and-forget (no success/failure return value is available to the caller).
- */
-export function applyExtensionTheme(fileUrl: string, ctx: ExtensionContext): void {
-  if (!ctx.hasUI) return;
-
-  const name = extensionName(fileUrl);
-
-  // If there are multiple extensions stacked in a single `pi -e ... -e ...` launch,
-  // they each fire session_start and try to apply their own mapped theme. The LAST
-  // one to fire would normally win. We want the primary extension (first in the
-  // -e list) to dictate the theme instead, so secondary extensions skip entirely.
-  const primaryExt = primaryExtensionName();
-  if (primaryExt && primaryExt !== name) {
-    return;
-  }
-
-  const themeName = THEME_MAP[name] || "synthwave";
-
-  setTimeout(() => {
-    const result = ctx.ui.setTheme(themeName);
-    if (!result.success && themeName !== "synthwave") {
-      ctx.ui.setTheme("synthwave");
-    }
-  }, 150);
-}
 // ── Title ──────────────────────────────────────────────────────────────────
 
 /**
@@ -200,40 +172,16 @@ function primaryExtensionName(): string | null {
 /**
  * Set the terminal title to "π - <first-extension-name>" on session boot.
  * Reads the title from process.argv so all stacked extensions agree on the
- * same value — no coordination or shared state required.
+ * same value — no coordination or shared state required. No-op if Pi wasn't
+ * launched with -e/--extension (e.g. loaded via settings.json/packages instead).
  *
- * Deferred 150 ms to fire after Pi's own startup title-set.
+ * Deferred 150 ms to fire after Pi's own startup title-set. Call this in every
+ * extension's session_start — unlike theme selection, title-setting is idempotent
+ * across stacked extensions, so there's no collision to avoid.
  */
-function applyExtensionTitle(ctx: ExtensionContext): void {
+export function applyExtensionTitle(ctx: ExtensionContext): void {
   if (!ctx.hasUI) return;
   const name = primaryExtensionName();
   if (!name) return;
   setTimeout(() => ctx.ui.setTitle(`π - ${name}`), 150);
-}
-
-// ── Combined default ─────────────────────────────────────────────────────────
-
-/**
- * Apply both the mapped theme AND the terminal title for an extension.
- * Drop-in replacement for applyExtensionTheme — call this in every session_start.
- * Still requires registerThemeDiscovery(pi, import.meta.url) in the factory body — this
- * alone does not register the extension's theme path with Pi.
- *
- * Usage:
- *   import { applyExtensionDefaults, registerThemeDiscovery } from "../lib/theme-map.ts";
- *
- *   export default function (pi: ExtensionAPI) {
- *     registerThemeDiscovery(pi, import.meta.url);
- *     pi.on("session_start", async (_event, ctx) => {
- *       applyExtensionDefaults(import.meta.url, ctx);
- *       // ... rest of handler
- *     });
- *   }
- */
-export function applyExtensionDefaults(
-  fileUrl: string,
-  ctx: ExtensionContext,
-): void {
-  applyExtensionTheme(fileUrl, ctx);
-  applyExtensionTitle(ctx);
 }

@@ -21,7 +21,7 @@ import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { AssistantMessage, TextContent } from "@earendil-works/pi-ai";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Key } from "@earendil-works/pi-tui";
-import { applyExtensionDefaults, registerThemeDiscovery } from "../../lib/theme-map.ts";
+import { applyExtensionTitle, registerThemeDiscovery } from "../../lib/theme-map.ts";
 import {
 	askPlanModeQuestions,
 	normalizePlanModeQuestionParams,
@@ -389,7 +389,7 @@ After completing a step, include a [DONE:n] tag in your response.`;
 
 	// Restore state on session start/resume
 	pi.on("session_start", async (_event, ctx) => {
-		applyExtensionDefaults(import.meta.url, ctx);
+		applyExtensionTitle(ctx);
 
 		if (pi.getFlag("plan") === true) {
 			planModeEnabled = true;

@@ -12,13 +12,13 @@
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
-import { applyExtensionDefaults, registerThemeDiscovery } from "../lib/theme-map.ts";
+import { applyExtensionTitle, registerThemeDiscovery } from "../lib/theme-map.ts";
 
 export default function (pi: ExtensionAPI) {
   registerThemeDiscovery(pi, import.meta.url);
 
   pi.on("session_start", async (_event, ctx) => {
-    applyExtensionDefaults(import.meta.url, ctx);
+    applyExtensionTitle(ctx);
     ctx.ui.setFooter((_tui, theme, _footerData) => ({
       dispose: () => {},
       invalidate() {},

@@ -20,7 +20,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parse as yamlParse } from "yaml";
-import { applyExtensionDefaults, registerThemeDiscovery } from "../lib/theme-map.ts";
+import { applyExtensionTitle, registerThemeDiscovery } from "../lib/theme-map.ts";
 
 interface Rule {
   pattern: string;
@@ -130,7 +130,7 @@ export default function (pi: ExtensionAPI) {
   }
 
   pi.on("session_start", async (_event, ctx) => {
-    applyExtensionDefaults(import.meta.url, ctx);
+    applyExtensionTitle(ctx);
     const projectRulesPath = path.join(
       ctx.cwd,
       ".pi",
